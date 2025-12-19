@@ -19,7 +19,7 @@ Start here based on your needs:
 
 ### Browser Plugins (Userscripts)
 - `portal-intel-cache.user.js` - Auto-capture portal data in browser
-- `portal-intel-sync.user.js` - Sync data to Azure SQL
+- `portal-intel-sync.user.js` - Sync data to Azure MySQL
 
 ### Azure Deployment
 - `azure-function-setup.sh` - Automated setup (Linux/Mac)
@@ -28,13 +28,13 @@ Start here based on your needs:
 
 ### Automation Scripts
 - `chrome-automation-example.js` - Selenium-based portal collection
-- `azure-upload.js` - Direct upload to Azure SQL
+- `azure-upload.js` - Direct upload to Azure MySQL
 - `package.json` - Node.js dependencies
 
 ### Examples
 - `portal-list-example.json` - Sample portal list format
 
-## ?? Quick Start
+## ? Quick Start
 
 ### 1. Azure Setup (One Command)
 ```bash
@@ -56,11 +56,11 @@ Copy `*.user.js` files to IITC plugins folder and reload.
 - **Activity Patterns** - Detect area activity trends
 - **Reporting** - Generate infrastructure reports
 
-## ?? Features
+## ? Features
 
 ? Automatic portal data capture  
 ? Browser localStorage caching  
-? Azure SQL Database sync  
+? Azure MySQL Database sync  
 ? Chrome automation support  
 ? Batch upload (100 portals per request)  
 ? Real-time statistics  

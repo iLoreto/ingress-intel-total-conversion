@@ -8,21 +8,16 @@ Get up and running with Portal Intelligence Collection in 15 minutes!
 
 ```bash
 # Clone or download the repository
-cd plugins
+cd plugins/flynn
 
-# Edit the setup script
-nano azure-function-setup.sh  # or azure-function-setup.ps1 on Windows
-
-# Change SQL_ADMIN_PASSWORD to something secure!
-SQL_ADMIN_PASSWORD="YourSecurePassword123!"
-
-# Run the setup
+# Run the setup script (it will prompt for password)
 ./azure-function-setup.sh  # or .\azure-function-setup.ps1 on Windows
 ```
 
-**Save the output!** You need:
+**Save the output!** The script creates `azure-credentials.txt` with:
 - Function URL
-- Function Key
+- Function Key  
+- MySQL connection details
 
 ### Step 2: Browser Plugin Setup (2 minutes)
 
@@ -32,7 +27,7 @@ SQL_ADMIN_PASSWORD="YourSecurePassword123!"
    - `portal-intel-sync.user.js`
 3. Reload IITC
 4. Navigate to Ingress Intel map
-5. Configure Azure Sync with URL and Key from Step 1
+5. Configure Azure Sync with URL and Key from `azure-credentials.txt`
 
 ### Step 3: Start Collecting! (1 minute)
 
@@ -64,7 +59,7 @@ If you have Azure CLI and Node.js installed:
 
 ```bash
 # Run everything in one go
-cd plugins && \
+cd plugins/flynn && \
 chmod +x azure-function-setup.sh && \
 ./azure-function-setup.sh && \
 npm install && \
@@ -92,13 +87,13 @@ node chrome-automation-example.js --portal-list portal-list.json
 
 **Linux/Mac (crontab):**
 ```bash
-0 2 * * * cd /path/to/plugins && node chrome-automation-example.js --headless --portal-list nightly.json >> logs/collection.log 2>&1
+0 2 * * * cd /path/to/plugins/flynn && node chrome-automation-example.js --headless --portal-list nightly.json >> logs/collection.log 2>&1
 ```
 
 **Windows (Task Scheduler):**
 - Program: `node`
 - Arguments: `chrome-automation-example.js --headless --portal-list nightly.json`
-- Start in: `C:\path\to\plugins`
+- Start in: `C:\path\to\plugins\flynn`
 
 ### Use Case 3: Manual + Auto Sync
 
@@ -118,7 +113,7 @@ exec('node azure-upload.js collected-intel.json', (err, stdout) => {
 
 ---
 
-## ?? Verify Setup
+## ? Verify Setup
 
 ### Check Azure Resources
 
@@ -127,8 +122,8 @@ exec('node azure-upload.js collected-intel.json', (err, stdout) => {
 az resource list --resource-group ingress-intel-rg --output table
 
 # Should show:
-# - SQL Server
-# - SQL Database
+# - MySQL Flexible Server
+# - Virtual Network
 # - Storage Account
 # - Function App
 ```
@@ -136,15 +131,18 @@ az resource list --resource-group ingress-intel-rg --output table
 ### Test Function
 
 ```bash
-curl "https://YOUR-FUNCTION.azurewebsites.net/api/UploadPortals/health?code=YOUR-KEY"
+curl "https://YOUR-FUNCTION.azurewebsites.net/api/health?code=YOUR-KEY"
 
 # Should return: {"status":"healthy","timestamp":"..."}
 ```
 
-### Test Database
+### Test Database (via Azure Cloud Shell)
 
 ```bash
-sqlcmd -S ingress-intel-sql.database.windows.net -d IngressIntel -U sqladmin -Q "SELECT COUNT(*) FROM PortalIntelligence"
+az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d IngressIntel
+
+# Then run:
+SELECT COUNT(*) FROM PortalIntelligence;
 ```
 
 ### Test Automation
@@ -161,7 +159,7 @@ node chrome-automation-example.js --help
 |---------|----------|
 | Azure CLI not found | Install: `https://aka.ms/installazurecli` |
 | Node.js not found | Install: `https://nodejs.org/` |
-| SQL connection fails | Check firewall rules, add your IP |
+| MySQL connection fails | Use Azure Cloud Shell (MySQL is VNet-only) |
 | Chrome automation fails | Update `chromeUserDataDir` path |
 | IITC not loading | Verify IITC installed in correct profile |
 | Function key not working | Check CORS settings, use full URL with `?code=` |
@@ -179,22 +177,24 @@ FROM PortalIntelligence
 GROUP BY Team;
 
 -- Recent activity
-SELECT TOP 10 PortalName, Team, Level, OwnerName, LastUpdated 
+SELECT PortalName, Team, Level, OwnerName, LastUpdated 
 FROM PortalIntelligence 
-ORDER BY LastUpdated DESC;
+ORDER BY LastUpdated DESC
+LIMIT 10;
 
 -- Top portal owners
-SELECT TOP 10 OwnerName, COUNT(*) as Portals 
+SELECT OwnerName, COUNT(*) as Portals 
 FROM PortalIntelligence 
 GROUP BY OwnerName 
-ORDER BY Portals DESC;
+ORDER BY Portals DESC
+LIMIT 10;
 ```
 
 ### Power BI Connection
 
 1. Open Power BI Desktop
-2. Get Data ? Azure SQL Database
-3. Server: `ingress-intel-sql.database.windows.net`
+2. Get Data ? Azure Database for MySQL
+3. Server: `ingress-intel-mysql.mysql.database.azure.com`
 4. Database: `IngressIntel`
 5. Use views: `vw_PortalSummaryStats`, `vw_TopPortalOwners`
 
@@ -204,15 +204,15 @@ ORDER BY Portals DESC;
 
 | Resource | Tier | Monthly Cost |
 |----------|------|--------------|
-| Azure SQL Database | S0 (10 DTU) | ~$15 |
-| Azure Function | Consumption | ~$0-5 |
-| Azure Storage | Standard LRS | ~$0-1 |
-| **Total** | | **~$15-20** |
+| Azure MySQL Flexible | B1ms (Burstable) | ~$5 |
+| Azure Function | Consumption | ~$0 (free tier) |
+| Azure Storage | Standard LRS | ~$0.50 |
+| Virtual Network | Standard | Free |
+| **Total** | | **~$5-6** |
 
-**Ways to reduce costs:**
-- Use Azure SQL Basic tier (~$5/month) for testing
-- Stop/start SQL database when not in use
-- Use serverless SQL compute tier (pay per query)
+**70% cheaper than Azure SQL!**
+
+See `MIGRATION-TO-MYSQL.md` for details.
 
 ---
 
@@ -229,7 +229,8 @@ ORDER BY Portals DESC;
 
 - **Full Setup Guide**: `README-AUTOMATION-SETUP.md`
 - **Plugin Documentation**: `README-PORTAL-INTEL.md`
-- **SQL Schema**: `azure-sql-schema.sql`
+- **MySQL Schema**: `azure-mysql-schema.sql`
+- **Migration Info**: `MIGRATION-TO-MYSQL.md`
 - **Example Scripts**: `chrome-automation-example.js`, `azure-upload.js`
 
 ---
@@ -243,7 +244,7 @@ ORDER BY Portals DESC;
 - [ ] Azure sync configured
 - [ ] Collected first portal
 - [ ] Synced to database
-- [ ] Verified data in SQL
+- [ ] Verified data in MySQL
 
 **?? You're ready to collect intelligence!**
 
