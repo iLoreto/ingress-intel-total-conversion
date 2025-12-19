@@ -2,20 +2,20 @@
 
 Complete automated system for collecting Ingress portal intelligence and storing it in Azure MySQL Database.
 
-## ?? Documentation
+## Documentation
 
 Start here based on your needs:
 
-### ?? **New User? Start Here:**
+### **New User? Start Here:**
 **[QUICK-START.md](QUICK-START.md)** - Get up and running in 15 minutes
 
-### ?? **Complete Guides:**
+### **Complete Guides:**
 - **[README-PORTAL-INTEL.md](README-PORTAL-INTEL.md)** - Plugin documentation and features
 - **[README-AUTOMATION-SETUP.md](README-AUTOMATION-SETUP.md)** - Complete setup guide with troubleshooting
 - **[PACKAGE-SUMMARY.md](PACKAGE-SUMMARY.md)** - System architecture and file overview
 - **[MIGRATION-TO-MYSQL.md](MIGRATION-TO-MYSQL.md)** - Why we use MySQL (70% cost savings!)
 
-## ?? What's Included
+## What's Included
 
 ### Browser Plugins (Userscripts)
 - `portal-intel-cache.user.js` - Auto-capture portal data in browser
@@ -34,7 +34,7 @@ Start here based on your needs:
 ### Examples
 - `portal-list-example.json` - Sample portal list format
 
-## ? Quick Start
+## Quick Start
 
 ### 1. Azure Setup (One Command)
 ```bash
@@ -45,10 +45,10 @@ Start here based on your needs:
 Copy `*.user.js` files to IITC plugins folder and reload.
 
 ### 3. Start Collecting
-**Manual:** Browse map, click portals ? Data auto-caches  
+**Manual:** Browse map, click portals -> Data auto-caches  
 **Automated:** `node chrome-automation-example.js --portal-list portal-list.json`
 
-## ?? Use Cases
+## Use Cases
 
 - **Team Coordination** - Track enemy portal status for planning
 - **Strategic Analysis** - Identify vulnerable targets
@@ -56,20 +56,20 @@ Copy `*.user.js` files to IITC plugins folder and reload.
 - **Activity Patterns** - Detect area activity trends
 - **Reporting** - Generate infrastructure reports
 
-## ? Features
+## Features
 
-? Automatic portal data capture  
-? Browser localStorage caching  
-? Azure MySQL Database sync  
-? Chrome automation support  
-? Batch upload (100 portals per request)  
-? Real-time statistics  
-? Export to JSON/CSV  
-? MERGE/UPSERT stored procedures  
-? Analytics views  
-? Error handling and retry logic  
+- Automatic portal data capture  
+- Browser localStorage caching  
+- Azure MySQL Database sync  
+- Chrome automation support  
+- Batch upload (100 portals per request)  
+- Real-time statistics  
+- Export to JSON/CSV  
+- MERGE/UPSERT stored procedures  
+- Analytics views  
+- Error handling and retry logic  
 
-## ?? Data Collected
+## Data Collected
 
 - Portal GUID, name, location
 - Team ownership and portal level
@@ -80,7 +80,7 @@ Copy `*.user.js` files to IITC plugins folder and reload.
 - Portal history (visited, captured, scout controlled)
 - Timestamps and update tracking
 
-## ?? Cost
+## Cost
 
 ~$5-6/month for Azure resources (70% cheaper than Azure SQL!):
 - Azure MySQL Flexible Server (B1ms): ~$5/month
@@ -91,7 +91,7 @@ Copy `*.user.js` files to IITC plugins folder and reload.
 **Note:** Migrated from Azure SQL Database (~$15-20/month) to save costs.  
 See **[MIGRATION-TO-MYSQL.md](MIGRATION-TO-MYSQL.md)** for details.
 
-## ?? Security
+## Security
 
 - Function-level authentication
 - API key required
@@ -101,9 +101,9 @@ See **[MIGRATION-TO-MYSQL.md](MIGRATION-TO-MYSQL.md)** for details.
 - Private networking by default
 - TLS/SSL encryption
 
-## ?? Troubleshooting
+## Troubleshooting
 
-See **[README-AUTOMATION-SETUP.md](README-AUTOMATION-SETUP.md)** ? Troubleshooting section
+See **[README-AUTOMATION-SETUP.md](README-AUTOMATION-SETUP.md)** -> Troubleshooting section
 
 Quick checks:
 ```bash
@@ -117,7 +117,7 @@ az resource list --resource-group ingress-intel-rg --output table
 az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d IngressIntel
 ```
 
-## ?? Sample Query
+## Sample Query
 
 ```sql
 -- Top 10 portal owners
@@ -128,28 +128,28 @@ ORDER BY Portals DESC
 LIMIT 10;
 ```
 
-## ?? Learning Path
+## Learning Path
 
-1. **Beginner**: Manual collection ? Export CSV ? Excel analysis
-2. **Intermediate**: Automated collection ? SQL queries ? Scheduled runs
-3. **Advanced**: Power BI dashboards ? Real-time monitoring
-4. **Expert**: ML predictions ? Custom analytics applications
+1. **Beginner**: Manual collection -> Export CSV -> Excel analysis
+2. **Intermediate**: Automated collection -> SQL queries -> Scheduled runs
+3. **Advanced**: Power BI dashboards -> Real-time monitoring
+4. **Expert**: ML predictions -> Custom analytics applications
 
-## ?? Support
+## Support
 
 1. Check documentation (README files)
 2. Review browser console logs (F12)
 3. Check Azure Function logs (Azure Portal)
 4. Verify configuration (API keys, endpoints, firewall rules)
 
-## ?? License
+## License
 
 ISC License (same as IITC-CE)
 
-## ?? Credits
+## Credits
 
 Built for the Ingress community using IITC-CE platform.
 
 ---
 
-**Ready to collect intelligence? See [QUICK-START.md](QUICK-START.md)!** ??
+**Ready to collect intelligence? See [QUICK-START.md](QUICK-START.md)!**
