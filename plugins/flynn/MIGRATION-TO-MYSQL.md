@@ -105,12 +105,12 @@ Uses `mysql2` instead of `mssql`:
 
 ```bash
 # Linux/Mac
-cd plugins
+cd plugins/flynn
 chmod +x azure-function-setup.sh
 ./azure-function-setup.sh
 
 # Windows PowerShell
-cd plugins
+cd plugins/flynn
 .\azure-function-setup.ps1
 ```
 
@@ -147,17 +147,17 @@ az sql server delete --resource-group ingress-intel-rg --name ingress-intel-sql
 
 ### Old Architecture (Azure SQL)
 ```
-Internet ??? Azure SQL Database (Public endpoint)
+Internet ? Azure SQL Database (Public endpoint)
                       ?
                       ? Firewall Rules
                       ?
                       ?
-              Function App ??? intel.ingress.com
+              Function App ? intel.ingress.com
 ```
 
 ### New Architecture (MySQL VNet)
 ```
-Internet ??? Function App ??? intel.ingress.com
+Internet ? Function App ? intel.ingress.com
                       ?
                       ? VNet (Private)
                       ?
@@ -225,7 +225,7 @@ Compared to ~$15-20/month with Azure SQL
 
 ---
 
-## ??? Troubleshooting
+## ?? Troubleshooting
 
 ### Script says "MySQL client not found"
 The script will still complete successfully. Deploy schema manually:
@@ -387,7 +387,7 @@ az network vnet delete \
 - Same upload process
 
 ### Queries
-- ? **Minor syntax changes**
+- ?? **Minor syntax changes**
 - T-SQL ? MySQL syntax
 - But same results!
 - See `azure-mysql-schema.sql` for examples
@@ -414,4 +414,4 @@ az network vnet delete \
 
 ---
 
-**Ready to migrate?** Run the setup script and enjoy 70% cost savings! ??
+**Ready to migrate?** Run the setup script and enjoy 70% cost savings! ????
