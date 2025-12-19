@@ -1,0 +1,32 @@
+[
+  {
+    "guid": "example-portal-1.16",
+    "lat": 40.7128,
+    "lng": -74.0060,
+    "name": "City Hall - New York"
+  },
+  {
+    "guid": "example-portal-2.16",
+    "lat": 40.7580,
+    "lng": -73.9855,
+    "name": "Times Square - New York"
+  },
+  {
+    "guid": "example-portal-3.16",
+    "lat": 40.7484,
+    "lng": -73.9857,
+    "name": "Empire State Building - New York"
+  },
+  {
+    "guid": "example-portal-4.16",
+    "lat": 40.7614,
+    "lng": -73.9776,
+    "name": "Central Park - New York"
+  },
+  {
+    "guid": "example-portal-5.16",
+    "lat": 40.7061,
+    "lng": -74.0087,
+    "name": "Brooklyn Bridge - New York"
+  }
+]

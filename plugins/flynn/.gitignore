@@ -1,0 +1,160 @@
+# Portal Intelligence Collection - Git Ignore
+
+# =============================================
+# Sensitive Files - NEVER COMMIT THESE
+# =============================================
+
+# Azure credentials and keys
+local.settings.json
+*.env
+.env
+.env.*
+credentials.json
+secrets.json
+azure-credentials.txt
+
+# Function keys and connection strings
+functionkeys.json
+*-connection-string.txt
+
+# =============================================
+# Collected Data Files
+# =============================================
+
+# Exported portal data
+collected-intel.json
+portal-intel-*.json
+portal-intel-*.csv
+export-*.json
+export-*.csv
+
+# Your actual portal lists (keep examples)
+portal-list.json
+nightly.json
+target-portals.json
+
+# =============================================
+# Azure Function Build
+# =============================================
+
+azure-function/
+!azure-function/.gitkeep
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# =============================================
+# IDE and OS Files
+# =============================================
+
+# Visual Studio
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+# =============================================
+# Logs and Temp Files
+# =============================================
+
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# =============================================
+# Browser and Selenium
+# =============================================
+
+# Selenium/Chrome driver logs
+chromedriver.log
+geckodriver.log
+selenium-debug.log
+
+# Chrome profiles (if stored locally)
+chrome-profile/
+chrome-user-data/
+
+# Screenshots from automation
+screenshots/
+*.png
+!logo.png
+!icon.png
+
+# =============================================
+# Backup Files
+# =============================================
+
+# Database backups
+*.bak
+*.backup
+backup-*.sql
+
+# Data backups
+backup-*.json
+backup-*.csv
+
+# =============================================
+# Build Outputs
+# =============================================
+
+# Compiled files
+dist/
+build/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# =============================================
+# Keep These Examples
+# =============================================
+
+# Example files are OK to commit
+!portal-list-example.json
+!README*.md
+!QUICK-START.md
+!*.sql
+!*.user.js
+!*-example.js
+!package.json

@@ -1,0 +1,30 @@
+{
+  "name": "ingress-portal-intel-automation",
+  "version": "1.0.0",
+  "description": "Automated portal intelligence collection for Ingress using Chrome automation",
+  "main": "chrome-automation-example.js",
+  "scripts": {
+    "start": "node chrome-automation-example.js",
+    "collect": "node chrome-automation-example.js",
+    "area-scan": "node chrome-automation-example.js --area-scan",
+    "headless": "node chrome-automation-example.js --headless"
+  },
+  "keywords": [
+    "ingress",
+    "iitc",
+    "selenium",
+    "automation",
+    "portal-intelligence"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "selenium-webdriver": "^4.15.0"
+  },
+  "devDependencies": {
+    "chromedriver": "^119.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
