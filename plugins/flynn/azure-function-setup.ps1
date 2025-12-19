@@ -1,4 +1,4 @@
-# =============================================
+﻿# =============================================
 # Azure Function Setup Script (PowerShell)
 # Portal Intelligence with Azure MySQL Database
 # Fully automated - creates DB and Function App
@@ -10,7 +10,7 @@ $LOCATION = "eastus"
 $STORAGE_ACCOUNT = "ingressintelstorage"
 $FUNCTION_APP_NAME = "ingress-intel-function"
 $MYSQL_SERVER_NAME = "ingress-intel-mysql"
-$MYSQL_DATABASE_NAME = "IngressIntel"
+$MYSQL_DATABASE_NAME = "FlynnDB"
 $MYSQL_ADMIN_USER = "mysqladmin"
 # Generate secure password
 $MYSQL_ADMIN_PASSWORD = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 16 | ForEach-Object {[char]$_}) + "MyS3c!"

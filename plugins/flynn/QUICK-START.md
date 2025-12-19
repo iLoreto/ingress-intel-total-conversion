@@ -1,4 +1,4 @@
-# ?? Quick Start Guide
+﻿# ?? Quick Start Guide
 
 Get up and running with Portal Intelligence Collection in 15 minutes!
 
@@ -139,7 +139,7 @@ curl "https://YOUR-FUNCTION.azurewebsites.net/api/health?code=YOUR-KEY"
 ### Test Database (via Azure Cloud Shell)
 
 ```bash
-az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d IngressIntel
+az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d FlynnDB
 
 # Then run:
 SELECT COUNT(*) FROM PortalIntelligence;
@@ -195,7 +195,7 @@ LIMIT 10;
 1. Open Power BI Desktop
 2. Get Data ? Azure Database for MySQL
 3. Server: `ingress-intel-mysql.mysql.database.azure.com`
-4. Database: `IngressIntel`
+4. Database: `FlynnDB`
 5. Use views: `vw_PortalSummaryStats`, `vw_TopPortalOwners`
 
 ---

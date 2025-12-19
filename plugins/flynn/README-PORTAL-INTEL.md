@@ -107,10 +107,10 @@ Click green status bar or "Intel Stats" button
 
 ```sql
 -- See azure-sql-schema.sql for complete schema
-CREATE DATABASE IngressIntel;
+CREATE DATABASE FlynnDB;
 GO
 
-USE IngressIntel;
+USE FlynnDB;
 GO
 ```
 

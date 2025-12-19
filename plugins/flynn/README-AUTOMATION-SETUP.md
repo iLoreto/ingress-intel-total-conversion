@@ -122,7 +122,7 @@ az sql server create \
 az sql db create \
   --resource-group ingress-intel-rg \
   --server ingress-intel-sql \
-  --name IngressIntel \
+  --name FlynnDB \
   --service-objective S0
 
 # Create Storage Account
@@ -150,7 +150,7 @@ az functionapp create \
 SQL_SERVER="ingress-intel-sql.database.windows.net"
 
 # Run schema script
-sqlcmd -S $SQL_SERVER -d IngressIntel -U sqladmin -P 'YourPassword' -i azure-sql-schema.sql
+sqlcmd -S $SQL_SERVER -d FlynnDB -U sqladmin -P 'YourPassword' -i azure-sql-schema.sql
 ```
 
 #### 3. Deploy Function Code
@@ -350,7 +350,7 @@ func azure functionapp logstream ingress-intel-function
 
 ```sql
 -- Connect to Azure SQL
-sqlcmd -S ingress-intel-sql.database.windows.net -d IngressIntel -U sqladmin
+sqlcmd -S ingress-intel-sql.database.windows.net -d FlynnDB -U sqladmin
 
 -- Check recent uploads
 SELECT TOP 20 
@@ -451,7 +451,7 @@ window.portalIntelCache.clearCache();
 ```bash
 # Test connection
 sqlcmd -S ingress-intel-sql.database.windows.net \
-  -d IngressIntel \
+  -d FlynnDB \
   -U sqladmin \
   -P 'YourPassword' \
   -Q "SELECT TOP 1 * FROM PortalIntelligence"
@@ -462,7 +462,7 @@ sqlcmd -S ingress-intel-sql.database.windows.net \
 ```bash
 # Re-run schema script
 sqlcmd -S ingress-intel-sql.database.windows.net \
-  -d IngressIntel \
+  -d FlynnDB \
   -U sqladmin \
   -P 'YourPassword' \
   -i azure-sql-schema.sql

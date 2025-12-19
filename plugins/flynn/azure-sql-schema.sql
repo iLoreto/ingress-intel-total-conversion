@@ -1,4 +1,4 @@
--- =============================================
+﻿-- =============================================
 -- Portal Intelligence Database Schema
 -- For Azure SQL Database
 -- Version: 1.0
@@ -8,13 +8,13 @@ USE master;
 GO
 
 -- Create database if it doesn't exist
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'IngressIntel')
+IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'FlynnDB')
 BEGIN
-    CREATE DATABASE IngressIntel;
+    CREATE DATABASE FlynnDB;
 END
 GO
 
-USE IngressIntel;
+USE FlynnDB;
 GO
 
 -- =============================================
@@ -499,16 +499,16 @@ GO
 
 /*
 -- Create a read-only user
-CREATE USER IngressIntelReader WITH PASSWORD = 'YourSecurePassword';
-GRANT SELECT ON dbo.PortalIntelligence TO IngressIntelReader;
-GRANT SELECT ON dbo.vw_PortalSummaryStats TO IngressIntelReader;
-GRANT SELECT ON dbo.vw_TopPortalOwners TO IngressIntelReader;
-GRANT SELECT ON dbo.vw_PortalActivityTimeline TO IngressIntelReader;
+CREATE USER FlynnDBReader WITH PASSWORD = 'YourSecurePassword';
+GRANT SELECT ON dbo.PortalIntelligence TO FlynnDBReader;
+GRANT SELECT ON dbo.vw_PortalSummaryStats TO FlynnDBReader;
+GRANT SELECT ON dbo.vw_TopPortalOwners TO FlynnDBReader;
+GRANT SELECT ON dbo.vw_PortalActivityTimeline TO FlynnDBReader;
 
 -- Create a write user (for Azure Function)
-CREATE USER IngressIntelWriter WITH PASSWORD = 'YourSecurePassword';
-GRANT SELECT, INSERT, UPDATE ON dbo.PortalIntelligence TO IngressIntelWriter;
-GRANT EXECUTE ON dbo.usp_UpsertPortalIntel TO IngressIntelWriter;
+CREATE USER FlynnDBWriter WITH PASSWORD = 'YourSecurePassword';
+GRANT SELECT, INSERT, UPDATE ON dbo.PortalIntelligence TO FlynnDBWriter;
+GRANT EXECUTE ON dbo.usp_UpsertPortalIntel TO FlynnDBWriter;
 */
 
 -- =============================================

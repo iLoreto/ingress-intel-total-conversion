@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 # =============================================
 # Azure Function Setup Script (Bash)
 # Portal Intelligence with Azure MySQL Database
@@ -11,7 +11,7 @@ LOCATION="eastus"
 STORAGE_ACCOUNT="ingressintelstorage"
 FUNCTION_APP_NAME="ingress-intel-function"
 MYSQL_SERVER_NAME="ingress-intel-mysql"
-MYSQL_DATABASE_NAME="IngressIntel"
+MYSQL_DATABASE_NAME="FlynnDB"
 MYSQL_ADMIN_USER="mysqladmin"
 MYSQL_ADMIN_PASSWORD="$(openssl rand -base64 16)MyS3cur3!"  # Auto-generated secure password
 VNET_NAME="ingress-intel-vnet"

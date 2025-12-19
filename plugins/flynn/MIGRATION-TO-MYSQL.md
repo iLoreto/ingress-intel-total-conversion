@@ -1,4 +1,4 @@
-# ?? Migration to Azure MySQL - Complete Guide
+﻿# ?? Migration to Azure MySQL - Complete Guide
 
 ## ?? What Changed
 
@@ -137,7 +137,7 @@ If you already have data in Azure SQL:
 node azure-upload.js your-exported-data.json
 
 # 4. Delete old Azure SQL resources (to stop billing)
-az sql db delete --resource-group ingress-intel-rg --server ingress-intel-sql --name IngressIntel
+az sql db delete --resource-group ingress-intel-rg --server ingress-intel-sql --name FlynnDB
 az sql server delete --resource-group ingress-intel-rg --name ingress-intel-sql
 ```
 
@@ -246,7 +246,7 @@ mysql -h your-server.mysql.database.azure.com \
       -u mysqladmin \
       -p \
       --ssl-mode=REQUIRED \
-      IngressIntel < azure-mysql-schema.sql
+      FlynnDB < azure-mysql-schema.sql
 ```
 
 ### Can't connect to MySQL from local machine
@@ -254,7 +254,7 @@ mysql -h your-server.mysql.database.azure.com \
 
 ```bash
 # Option 1: Use Azure Cloud Shell
-az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d IngressIntel
+az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d FlynnDB
 
 # Option 2: Enable public access temporarily (not recommended)
 az mysql flexible-server update \

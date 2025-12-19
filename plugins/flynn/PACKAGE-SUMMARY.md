@@ -263,7 +263,7 @@ Edit in setup scripts:
 RESOURCE_GROUP="ingress-intel-rg"
 LOCATION="eastus"
 SQL_SERVER_NAME="ingress-intel-sql"
-SQL_DATABASE_NAME="IngressIntel"
+SQL_DATABASE_NAME="FlynnDB"
 SQL_ADMIN_PASSWORD="YourSecurePassword123!"  # CHANGE THIS!
 ```
 

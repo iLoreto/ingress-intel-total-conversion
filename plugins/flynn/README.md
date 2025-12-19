@@ -1,4 +1,4 @@
-# Portal Intelligence Collection System
+﻿# Portal Intelligence Collection System
 
 Complete automated system for collecting Ingress portal intelligence and storing it in Azure MySQL Database.
 
@@ -114,7 +114,7 @@ node azure-upload.js --test
 az resource list --resource-group ingress-intel-rg --output table
 
 # Test database (via Azure Cloud Shell - MySQL is VNet-only)
-az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d IngressIntel
+az mysql flexible-server connect -n ingress-intel-mysql -u mysqladmin -d FlynnDB
 ```
 
 ## Sample Query
