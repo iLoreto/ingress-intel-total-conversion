@@ -1,4 +1,4 @@
-# Portal Intelligence Automation Setup
+﻿# Portal Intelligence Automation Setup
 
 Complete guide for setting up Azure Function and Chrome automation for automated portal intelligence collection.
 
@@ -470,7 +470,7 @@ sqlcmd -S ingress-intel-sql.database.windows.net \
 
 ---
 
-## ?? Performance Tips
+## ? Performance Tips
 
 ### Optimize Collection Speed
 
@@ -527,7 +527,7 @@ AND LastUpdated < DATEADD(DAY, -30, GETUTCDATE());
 
 ---
 
-## ?? Maintenance Tasks
+## ??? Maintenance Tasks
 
 ### Daily
 - Monitor automation logs for errors

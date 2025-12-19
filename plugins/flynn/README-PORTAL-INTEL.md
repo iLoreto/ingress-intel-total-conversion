@@ -1,4 +1,4 @@
-# Portal Intelligence Cache & Azure Sync Plugins
+﻿# Portal Intelligence Cache & Azure Sync Plugins
 
 Two-phase intelligence gathering system for Ingress portals with Azure SQL Database integration.
 
@@ -101,7 +101,7 @@ Click "Export Intel (JSON)" or "Export Intel (CSV)" button
 Click green status bar or "Intel Stats" button
 ```
 
-## ??? Azure SQL Database Setup
+## ?? Azure SQL Database Setup
 
 ### Step 1: Create Database
 
