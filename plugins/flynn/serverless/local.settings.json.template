@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "MYSQL_HOST": "localhost",  // Use Azure MariaDB hostname for production
+    "MYSQL_DATABASE": "FlynnDB",
+    "MYSQL_USER": "root",       // Use Azure MariaDB user for production
+    "MYSQL_PASSWORD": "localpass123"  // Update with your local MariaDB password
+  },
+  "Host": {
+    "CORS": "*",
+    "CORSCredentials": false
+  }
+}

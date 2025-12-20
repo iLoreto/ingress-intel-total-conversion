@@ -1,25 +1,26 @@
-const mysql = require('mysql2/promise');
+const mariadb = require('mariadb');
 
-// MySQL connection config from environment variables
+// MariaDB connection config from environment variables
 const dbConfig = {
     host: process.env['MYSQL_HOST'],
     database: process.env['MYSQL_DATABASE'],
     user: process.env['MYSQL_USER'],
     password: process.env['MYSQL_PASSWORD'],
-    ssl: {
-        rejectUnauthorized: true
-    },
     connectTimeout: 10000,
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+    connectionLimit: 10
 };
+
+// Only require SSL for Azure (non-localhost)
+if (process.env['MYSQL_HOST'] && !process.env['MYSQL_HOST'].includes('localhost')) {
+    dbConfig.ssl = { rejectUnauthorized: true };
+}
 
 let pool = null;
 
 async function getPool() {
     if (!pool) {
-        pool = mysql.createPool(dbConfig);
+        pool = mariadb.createPool(dbConfig);
     }
     return pool;
 }
@@ -27,18 +28,43 @@ async function getPool() {
 module.exports = async function (context, req) {
     context.log('Portal Intelligence Upload function triggered');
 
-    // Handle health check
-    if (req.method === 'GET' && req.url.includes('/health')) {
-        context.res = {
-            status: 200,
-            body: { status: 'healthy', timestamp: new Date().toISOString() }
-        };
+    // Handle health check (GET request)
+    if (req.method === 'GET' && req.url === '/api/UploadPortals/health') {
+        // Test database connection on health check
+        try {
+            const dbPool = await getPool();
+            const connection = await dbPool.getConnection();
+            await connection.ping();
+            connection.release();
+
+            context.res = {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+                body: {
+                    status: 'healthy',
+                    database: 'connected',
+                    host: process.env['MYSQL_HOST'],
+                    timestamp: new Date().toISOString()
+                }
+            };
+        } catch (err) {
+            context.res = {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' },
+                body: {
+                    status: 'unhealthy',
+                    database: 'disconnected',
+                    error: err.message,
+                    timestamp: new Date().toISOString()
+                }
+            };
+        }
         return;
     }
 
     // Validate request
     const portals = req.body?.portals;
-    
+
     if (!portals || !Array.isArray(portals)) {
         context.res = {
             status: 400,
@@ -60,7 +86,7 @@ module.exports = async function (context, req) {
     try {
         const dbPool = await getPool();
         const connection = await dbPool.getConnection();
-        
+
         let successCount = 0;
         let errorCount = 0;
         const errors = [];
@@ -68,9 +94,8 @@ module.exports = async function (context, req) {
         try {
             for (const portal of portals) {
                 try {
-                    await connection.execute(
+                    await connection.query(
                         `CALL usp_UpsertPortalIntel(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-
                         [
                             portal.PortalGUID,
                             portal.Latitude,
@@ -98,7 +123,7 @@ module.exports = async function (context, req) {
                             portal.UpdateCount
                         ]
                     );
-                    
+
                     successCount++;
                 } catch (err) {
                     errorCount++;
@@ -127,7 +152,7 @@ module.exports = async function (context, req) {
 
     } catch (err) {
         context.log.error('Database connection error:', err);
-        
+
         context.res = {
             status: 500,
             body: {
@@ -136,4 +161,4 @@ module.exports = async function (context, req) {
             }
         };
     }
-};
+};};

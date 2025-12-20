@@ -1,8 +1,8 @@
-﻿# ?? Quick Start Guide
+﻿# 🚀 Quick Start Guide
 
 Get up and running with Portal Intelligence Collection in 15 minutes!
 
-## ? Fast Track Setup
+## ⚡ Fast Track Setup
 
 ### Step 1: Azure Setup (5 minutes)
 
@@ -17,7 +17,7 @@ cd plugins/flynn
 **Save the output!** The script creates `azure-credentials.txt` with:
 - Function URL
 - Function Key  
-- MySQL connection details
+- MariaDB connection details
 
 ### Step 2: Browser Plugin Setup (2 minutes)
 
@@ -53,7 +53,123 @@ node chrome-automation-example.js --portal-list portal-list.json
 
 ---
 
-## ?? One-Command Setup (Advanced)
+## 🖥️ Local Development Setup
+
+Test the Azure Function locally before deploying to Azure.
+
+### Prerequisites
+
+```bash
+# 1. Install Azure Functions Core Tools
+npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+# 2. Install MariaDB locally
+# On Windows: https://mariadb.com/downloads/
+# On Linux/Mac: Use your package manager (e.g., apt, brew)
+
+# 3. Verify installations
+az --version        # Azure CLI
+func --version      # Azure Functions Core Tools (should show 4.x)
+mariadb --version   # MariaDB (should show 10.x or higher)
+```
+
+### Setup Local Environment
+
+```bash
+# Navigate to the serverless directory
+cd plugins/flynn/serverless
+
+# Install dependencies
+npm install
+
+# Create local.settings.json for local testing
+cp local.settings.json.template local.settings.json
+
+# Edit local.settings.json to use your local MariaDB credentials
+nano local.settings.json   # or use vim, notepad, etc.
+```
+
+### Run Locally
+
+```bash
+# Start the function locally
+func start
+```
+
+You should see:
+```
+Functions:
+    UploadPortals: [GET,POST] http://localhost:7071/api/UploadPortals
+```
+
+### Test Local Function
+
+**Health Check (GET):**
+```bash
+curl http://localhost:7071/api/UploadPortals/health
+```
+
+**Test Portal Upload (POST):**
+```bash
+curl -X POST http://localhost:7071/api/UploadPortals \
+  -H "Content-Type: application/json" \
+  -d '{
+    "portals": [{
+      "PortalGUID": "test123.16",
+      "Latitude": 40.7128,
+      "Longitude": -74.0060,
+      "LatE6": 40712800,
+      "LngE6": -74006000,
+      "PortalName": "Test Portal",
+      "ImageURL": "https://example.com/img.jpg",
+      "Team": "RESISTANCE",
+      "Level": 7,
+      "Health": 85,
+      "ResonatorCount": 8,
+      "OwnerName": "TestAgent",
+      "LinkCount": 5,
+      "IncomingLinks": 2,
+      "OutgoingLinks": 3,
+      "FieldCount": 1,
+      "HistoryVisited": true,
+      "HistoryCaptured": false,
+      "HistoryScoutControlled": false,
+      "ResonatorsJSON": [],
+      "ModsJSON": [],
+      "FirstSeen": "2024-01-15T10:00:00Z",
+      "LastUpdated": "2024-01-15T10:00:00Z",
+      "UpdateCount": 1
+    }]
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "message": "Successfully processed 1 of 1 portals",
+  "successCount": 1,
+  "errorCount": 0
+}
+```
+
+### Local Development Without Azure
+
+For local testing, ensure MariaDB is running locally:
+
+```bash
+# Start MariaDB locally
+mariadb -u root -p
+
+# Create the database
+CREATE DATABASE FlynnDB;
+
+# Apply the schema
+source /path/to/azure-mysql-schema.sql;
+```
+
+---
+
+## 🚀 One-Command Setup (Advanced)
 
 If you have Azure CLI and Node.js installed:
 
