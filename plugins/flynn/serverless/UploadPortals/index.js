@@ -27,9 +27,27 @@ async function getPool() {
 
 module.exports = async function (context, req) {
     context.log('Portal Intelligence Upload function triggered');
+    context.log(`Request method: ${req.method}`);
+    context.log(`Request URL: ${req.url}`);
 
-    // Handle health check (GET request)
-    if (req.method === 'GET' && req.url === '/api/UploadPortals/health') {
+    // Extract just the path from the URL (remove protocol, host, port)
+    let urlPath = req.url;
+    try {
+        const parsedUrl = new URL(req.url);
+        urlPath = parsedUrl.pathname;
+    } catch (e) {
+        // If parsing fails, assume it's already a path
+        urlPath = req.url;
+    }
+
+    // Normalize the route to handle trailing slashes and case sensitivity
+    const normalizedUrl = urlPath.toLowerCase().replace(/\/$/, '');
+    context.log(`Normalized URL path: ${normalizedUrl}`);
+
+    // Handle health check (GET or HEAD request)
+    if ((req.method === 'GET' || req.method === 'HEAD') && normalizedUrl === '/api/uploadportals/health') {
+        context.log('Health check route matched');
+
         // Test database connection on health check
         try {
             const dbPool = await getPool();
@@ -40,7 +58,7 @@ module.exports = async function (context, req) {
             context.res = {
                 status: 200,
                 headers: { 'Content-Type': 'application/json' },
-                body: {
+                body: req.method === 'HEAD' ? undefined : {
                     status: 'healthy',
                     database: 'connected',
                     host: process.env['MYSQL_HOST'],
@@ -51,7 +69,7 @@ module.exports = async function (context, req) {
             context.res = {
                 status: 503,
                 headers: { 'Content-Type': 'application/json' },
-                body: {
+                body: req.method === 'HEAD' ? undefined : {
                     status: 'unhealthy',
                     database: 'disconnected',
                     error: err.message,
@@ -62,7 +80,9 @@ module.exports = async function (context, req) {
         return;
     }
 
-    // Validate request
+    context.log('Health check route not matched');
+
+    // Validate request for portal upload
     const portals = req.body?.portals;
 
     if (!portals || !Array.isArray(portals)) {
@@ -161,4 +181,4 @@ module.exports = async function (context, req) {
             }
         };
     }
-};};
+};

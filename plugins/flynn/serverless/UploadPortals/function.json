@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["post", "get"],
-      "route": "UploadPortals"
+      "methods": ["post", "get", "head"],
+      "route": "UploadPortals/{*route}"
     },
     {
       "type": "http",
