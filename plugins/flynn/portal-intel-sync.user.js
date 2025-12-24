@@ -2,7 +2,7 @@
 // @author         YourName
 // @name           Portal Intel Azure Sync
 // @category       Info
-// @version        0.1.0
+// @version        0.1.3
 // @description    Sync cached portal intelligence to Azure SQL Database
 // @id             portal-intel-sync
 // @namespace      https://github.com/IITC-CE/ingress-intel-total-conversion
@@ -10,10 +10,19 @@
 // @grant          none
 // ==/UserScript==
 
+console.log('[Azure Sync] Updated to version 0.1.3');
+
 /* exported setup --eslint */
 /* global IITC -- eslint */
 
+console.log('[Azure Sync] ========== PLUGIN LOADING START ==========');
+console.log('[Azure Sync] Timestamp:', new Date().toISOString());
+
 var changelog = [
+  {
+    version: '0.1.1',
+    changes: ['Added comprehensive debugging', 'Fixed API endpoint handling', 'Improved error reporting']
+  },
   {
     version: '0.1.0',
     changes: ['Initial release', 'Azure SQL sync functionality', 'Batch upload support']
@@ -22,6 +31,8 @@ var changelog = [
 
 var portalIntelSync = {};
 window.plugin.portalIntelSync = portalIntelSync;
+
+console.log('[Azure Sync] Namespace created: window.plugin.portalIntelSync');
 
 // Azure Function / API configuration
 portalIntelSync.config = {
@@ -74,28 +85,40 @@ portalIntelSync.loadConfig = function() {
  * Sync all cached portals to Azure SQL
  */
 portalIntelSync.syncAll = function() {
+  console.log('[Azure Sync] Sync all triggered.');
+
   if (!window.plugin.portalIntelCache) {
-    alert('Portal Intelligence Cache plugin is required!');
+    console.error('[Azure Sync] Portal Intel Cache plugin is not available. Sync aborted.');
     return;
   }
+
+  console.log('[Azure Sync] Cache plugin found');
+  console.log('[Azure Sync] Endpoint configured:', portalIntelSync.config.apiEndpoint || '(none)');
   
   if (!portalIntelSync.config.apiEndpoint) {
+    console.warn('[Azure Sync] No endpoint configured, prompting user...');
     alert('Please configure Azure API endpoint first!');
     portalIntelSync.configure();
     return;
   }
   
   var records = window.plugin.portalIntelCache.exportForSync();
+  console.log('[Azure Sync] Exported', records.length, 'portal records');
   
   if (records.length === 0) {
+    console.warn('[Azure Sync] No portals to sync');
     alert('No portals to sync!');
     return;
   }
   
-  if (!confirm('Sync ' + records.length + ' portals to Azure SQL?')) {
+  console.log('[Azure Sync] First record sample:', records[0]);
+  
+  if (!confirm('Sync ' + records.length + ' portals to Azure SQL?\n\nEndpoint: ' + portalIntelSync.config.apiEndpoint)) {
+    console.log('[Azure Sync] User cancelled sync');
     return;
   }
   
+  console.log('[Azure Sync] User confirmed, starting sync...');
   portalIntelSync.syncRecords(records);
 };
 
@@ -215,44 +238,159 @@ portalIntelSync.processBatches = function(batches, index, dialog, successCount, 
 };
 
 /**
- * Send a batch to Azure
+ * Test connection to Azure endpoint
  */
-portalIntelSync.sendBatch = function(batch, callback) {
+portalIntelSync.testConnection = function() {
+  console.log('[Azure Sync] Testing connection to Azure endpoint:', portalIntelSync.config.apiEndpoint);
+
+  if (!portalIntelSync.config.apiEndpoint) {
+    console.error('[Azure Sync] No API endpoint configured.');
+    return;
+  }
+
+  var testUrl = portalIntelSync.config.apiEndpoint;
+  if (!testUrl.endsWith('/health')) {
+    testUrl = testUrl.replace(/\/$/, '') + '/health';
+  }
+  
+  console.log('[Azure Sync] Testing URL:', testUrl);
+  
   var xhr = new XMLHttpRequest();
-  xhr.open('POST', portalIntelSync.config.apiEndpoint, true);
-  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.open('GET', testUrl, true);
   
   if (portalIntelSync.config.apiKey) {
     xhr.setRequestHeader('x-functions-key', portalIntelSync.config.apiKey);
+    console.log('[Azure Sync] API key added to request');
   }
   
-  xhr.timeout = 30000; // 30 second timeout
+  xhr.timeout = 10000;
   
   xhr.onload = function() {
+    console.log('[Azure Sync] Connection test response:', xhr.status, xhr.statusText);
+    console.log('[Azure Sync] Response body:', xhr.responseText);
+    
     if (xhr.status >= 200 && xhr.status < 300) {
-      console.log('[Azure Sync] Batch synced successfully:', batch.length, 'records');
-      callback(true);
+      alert('✅ Connection successful!\n\nEndpoint: ' + portalIntelSync.config.apiEndpoint);
     } else {
-      console.error('[Azure Sync] Batch failed:', xhr.status, xhr.statusText);
-      console.error('[Azure Sync] Response:', xhr.responseText);
-      callback(false);
+      alert('❌ Connection failed!\n\nStatus: ' + xhr.status + '\n' + xhr.statusText);
     }
   };
   
   xhr.onerror = function() {
-    console.error('[Azure Sync] Network error');
+    console.error('[Azure Sync] Network error during connection test');
+    alert('❌ Network error!\n\nCannot reach endpoint.');
+  };
+  
+  xhr.ontimeout = function() {
+    console.error('[Azure Sync] Connection timeout');
+    alert('❌ Connection timeout!\n\nEndpoint did not respond in time.');
+  };
+  
+  xhr.send();
+};
+
+/**
+ * Send a batch to Azure
+ */
+portalIntelSync.sendBatch = function(batch, callback) {
+  console.log('[Azure Sync] ===== SENDING BATCH =====');
+  console.log('[Azure Sync] Batch size:', batch.length, 'portals');
+  console.log('[Azure Sync] Endpoint:', portalIntelSync.config.apiEndpoint);
+  console.log('[Azure Sync] API Key configured:', portalIntelSync.config.apiKey ? 'Yes (***' + portalIntelSync.config.apiKey.slice(-4) + ')' : 'No');
+  console.log('[Azure Sync] First portal in batch:');
+  console.log('[Azure Sync]   GUID:', batch[0].PortalGUID);
+  console.log('[Azure Sync]   Name:', batch[0].PortalName);
+  console.log('[Azure Sync]   Team:', batch[0].Team);
+  console.log('[Azure Sync]   Location:', batch[0].Latitude + ',' + batch[0].Longitude);
+  
+  var xhr = new XMLHttpRequest();
+  
+  // Event listeners for debugging
+  xhr.addEventListener('loadstart', function() {
+    console.log('[Azure Sync] XHR loadstart event');
+  });
+  
+  xhr.addEventListener('progress', function(e) {
+    console.log('[Azure Sync] XHR progress event:', e.loaded, '/', e.total);
+  });
+  
+  xhr.addEventListener('abort', function() {
+    console.error('[Azure Sync] XHR abort event');
+  });
+  
+  xhr.addEventListener('error', function(e) {
+    console.error('[Azure Sync] XHR error event:', e);
+  });
+  
+  xhr.addEventListener('timeout', function() {
+    console.error('[Azure Sync] XHR timeout event');
+  });
+  
+  xhr.open('POST', portalIntelSync.config.apiEndpoint, true);
+  console.log('[Azure Sync] XHR opened: POST', portalIntelSync.config.apiEndpoint);
+  
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  console.log('[Azure Sync] Set Content-Type header');
+  
+  if (portalIntelSync.config.apiKey) {
+    xhr.setRequestHeader('x-functions-key', portalIntelSync.config.apiKey);
+    console.log('[Azure Sync] Set x-functions-key header');
+  }
+  
+  xhr.timeout = 30000; // 30 second timeout
+  console.log('[Azure Sync] Set timeout: 30000ms');
+  
+  xhr.onload = function() {
+    console.log('[Azure Sync] ===== XHR ONLOAD =====');
+    console.log('[Azure Sync] Response status:', xhr.status, xhr.statusText);
+    console.log('[Azure Sync] Response headers:', xhr.getAllResponseHeaders());
+    console.log('[Azure Sync] Response body length:', xhr.responseText.length);
+    console.log('[Azure Sync] Response body (first 500 chars):', xhr.responseText.substring(0, 500));
+    
+    try {
+      var responseData = JSON.parse(xhr.responseText);
+      console.log('[Azure Sync] Parsed response:', responseData);
+    } catch (e) {
+      console.error('[Azure Sync] Failed to parse response as JSON:', e);
+    }
+    
+    if (xhr.status >= 200 && xhr.status < 300) {
+      console.log('[Azure Sync] ✅✅✅ Batch synced successfully:', batch.length, 'records');
+      callback(true);
+    } else {
+      console.error('[Azure Sync] ❌❌❌ Batch failed with status:', xhr.status, xhr.statusText);
+      console.error('[Azure Sync] Full response:', xhr.responseText);
+      callback(false);
+    }
+  };
+  
+  xhr.onerror = function(e) {
+    console.error('[Azure Sync] ❌ Network error sending batch');
+    console.error('[Azure Sync] Error event:', e);
+    console.error('[Azure Sync] XHR state:', xhr.readyState);
+    console.error('[Azure Sync] XHR status:', xhr.status);
     callback(false);
   };
   
   xhr.ontimeout = function() {
-    console.error('[Azure Sync] Request timeout');
+    console.error('[Azure Sync] ❌ Request timeout (30s exceeded)');
     callback(false);
   };
   
+  var payload = { portals: batch };
+  var payloadString = JSON.stringify(payload);
+  console.log('[Azure Sync] Payload size:', payloadString.length, 'characters');
+  console.log('[Azure Sync] Payload (first 500 chars):', payloadString.substring(0, 500));
+  
   try {
-    xhr.send(JSON.stringify({ portals: batch }));
+    console.log('[Azure Sync] Sending XHR request...');
+    xhr.send(payloadString);
+    console.log('[Azure Sync] XHR request sent, waiting for response...');
   } catch (e) {
-    console.error('[Azure Sync] Error sending batch:', e);
+    console.error('[Azure Sync] ❌ Exception sending batch:', e);
+    console.error('[Azure Sync] Error name:', e.name);
+    console.error('[Azure Sync] Error message:', e.message);
+    console.error('[Azure Sync] Stack trace:', e.stack);
     callback(false);
   }
 };
@@ -322,44 +460,6 @@ portalIntelSync.showSyncProgress = function(totalBatches) {
 };
 
 /**
- * Test connection to Azure endpoint
- */
-portalIntelSync.testConnection = function() {
-  if (!portalIntelSync.config.apiEndpoint) {
-    alert('Please configure Azure API endpoint first!');
-    portalIntelSync.configure();
-    return;
-  }
-  
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', portalIntelSync.config.apiEndpoint + '/health', true);
-  
-  if (portalIntelSync.config.apiKey) {
-    xhr.setRequestHeader('x-functions-key', portalIntelSync.config.apiKey);
-  }
-  
-  xhr.timeout = 10000;
-  
-  xhr.onload = function() {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      alert('✅ Connection successful!\n\nEndpoint: ' + portalIntelSync.config.apiEndpoint);
-    } else {
-      alert('❌ Connection failed!\n\nStatus: ' + xhr.status + '\n' + xhr.statusText);
-    }
-  };
-  
-  xhr.onerror = function() {
-    alert('❌ Network error!\n\nCannot reach endpoint.');
-  };
-  
-  xhr.ontimeout = function() {
-    alert('❌ Connection timeout!\n\nEndpoint did not respond in time.');
-  };
-  
-  xhr.send();
-};
-
-/**
  * Show sync statistics
  */
 portalIntelSync.showStats = function() {
@@ -412,46 +512,87 @@ portalIntelSync.showStats = function() {
  * Setup UI
  */
 portalIntelSync.setupUI = function() {
-  IITC.toolbox.addButton({
-    label: 'Configure Azure Sync',
-    title: 'Configure Azure SQL API endpoint and credentials',
-    action: portalIntelSync.configure
-  });
+  console.log('[Azure Sync] Setting up UI...');
   
-  IITC.toolbox.addButton({
-    label: 'Test Azure Connection',
-    title: 'Test connection to Azure SQL API',
-    action: portalIntelSync.testConnection
-  });
+  // Check if IITC.toolbox exists
+  if (typeof IITC !== 'undefined' && IITC.toolbox) {
+    console.log('[Azure Sync] IITC.toolbox available, adding buttons...');
+    
+    IITC.toolbox.addButton({
+      label: 'Configure Azure Sync',
+      title: 'Configure Azure SQL API endpoint and credentials',
+      action: portalIntelSync.configure
+    });
+    
+    IITC.toolbox.addButton({
+      label: 'Test Azure Connection',
+      title: 'Test connection to Azure SQL API',
+      action: portalIntelSync.testConnection
+    });
+    
+    IITC.toolbox.addButton({
+      label: 'Sync All to Azure',
+      title: 'Upload ALL cached portal data to Azure SQL Database',
+      action: portalIntelSync.syncAll
+    });
+    
+    IITC.toolbox.addButton({
+      label: 'Sync Pending to Azure',
+      title: 'Upload only pending (unsynced) portal data to Azure SQL',
+      action: portalIntelSync.syncPending
+    });
+    
+    IITC.toolbox.addButton({
+      label: 'Azure Sync Stats',
+      title: 'View Azure sync statistics',
+      action: portalIntelSync.showStats
+    });
+    
+    console.log('[Azure Sync] Toolbox buttons added');
+  } else {
+    console.warn('[Azure Sync] IITC.toolbox not available - buttons not added');
+    console.log('[Azure Sync] IITC object:', typeof IITC !== 'undefined' ? IITC : 'undefined');
+  }
   
-  IITC.toolbox.addButton({
-    label: 'Sync All to Azure',
-    title: 'Upload ALL cached portal data to Azure SQL Database',
-    action: portalIntelSync.syncAll
-  });
-  
-  IITC.toolbox.addButton({
-    label: 'Sync Pending to Azure',
-    title: 'Upload only pending (unsynced) portal data to Azure SQL',
-    action: portalIntelSync.syncPending
-  });
-  
-  IITC.toolbox.addButton({
-    label: 'Azure Sync Stats',
-    title: 'View Azure sync statistics',
-    action: portalIntelSync.showStats
-  });
+  console.log('[Azure Sync] UI setup complete');
 };
 
 /**
  * Setup function
  */
 var setup = function() {
-  portalIntelSync.loadConfig();
-  portalIntelSync.setupUI();
+  console.log('[Azure Sync] ========== SETUP FUNCTION CALLED ==========');
+  console.log('[Azure Sync] Setup called at:', new Date().toISOString());
+  console.log('[Azure Sync] Checking dependencies...');
+  console.log('[Azure Sync] window.plugin exists:', typeof window.plugin !== 'undefined');
+  console.log('[Azure Sync] window.plugin.portalIntelCache exists:', typeof window.plugin !== 'undefined' && typeof window.plugin.portalIntelCache !== 'undefined');
   
-  console.log('[Azure Sync] Plugin initialized');
+  if (typeof window.plugin !== 'undefined' && window.plugin.portalIntelCache) {
+    console.log('[Azure Sync] ✅ Portal Intel Cache plugin detected');
+    console.log('[Azure Sync] Cache size:', Object.keys(window.plugin.portalIntelCache.cache || {}).length);
+  } else {
+    console.warn('[Azure Sync] ⚠️ Portal Intel Cache plugin NOT detected (may load later)');
+  }
+  
+  console.log('[Azure Sync] Loading configuration from localStorage...');
+  portalIntelSync.loadConfig();
+  console.log('[Azure Sync] Configuration loaded:');
+  console.log('[Azure Sync]   - Endpoint:', portalIntelSync.config.apiEndpoint || '(not configured)');
+  console.log('[Azure Sync]   - API Key:', portalIntelSync.config.apiKey ? 'Set (***' + portalIntelSync.config.apiKey.slice(-4) + ')' : '(not set)');
+  console.log('[Azure Sync]   - Batch Size:', portalIntelSync.config.batchSize);
+  console.log('[Azure Sync]   - Retry Attempts:', portalIntelSync.config.retryAttempts);
+  console.log('[Azure Sync]   - Retry Delay:', portalIntelSync.config.retryDelay + 'ms');
+  
+  console.log('[Azure Sync] Setting up UI...');
+  portalIntelSync.setupUI();
   
   // Make globally accessible for automation
   window.portalIntelSync = portalIntelSync;
+  console.log('[Azure Sync] ✅ Exposed as window.portalIntelSync');
+  
+  console.log('[Azure Sync] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
+  console.log('[Azure Sync] Plugin version: 0.1.1');
+  console.log('[Azure Sync] Ready to sync portal data to Azure SQL');
+  console.log('[Azure Sync] Use "Configure Azure Sync" button to set endpoint');
+  console.log('[Azure Sync] ==========================================================');
 };

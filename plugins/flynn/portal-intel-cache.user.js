@@ -2,7 +2,7 @@
 // @author         YourName
 // @name           Portal Intelligence Cache
 // @category       Info
-// @version        0.1.0
+// @version        0.1.3
 // @description    Captures portal details to browser localStorage for later Azure SQL sync
 // @id             portal-intel-cache
 // @namespace      https://github.com/IITC-CE/ingress-intel-total-conversion
@@ -10,12 +10,25 @@
 // @grant          none
 // ==/UserScript==
 
+console.log('[Intel Cache] Updated to version 0.1.3')
+
 /* exported setup --eslint */
 /* global IITC -- eslint */
 
+console.log('[Intel Cache] ========== PLUGIN LOADING START ==========');
+console.log('[Intel Cache] Timestamp:', new Date().toISOString());
+
 var changelog = [
   {
-    version: '0.1.0',
+    version: '0.1.3',
+    changes: ['Added portalSelected hook for immediate capture on portal selection', 'Enhanced logging for portal details on selection']
+  },
+  {
+    version: '0.1.2',
+    changes: ['Added comprehensive debugging', 'Fixed hook registration', 'Improved error handling']
+  },
+  {
+    version: '0.1.1',
     changes: ['Initial release', 'Captures portal details to localStorage', 'Export functionality for Azure SQL sync']
   }
 ];
@@ -24,6 +37,8 @@ var changelog = [
 var portalIntelCache = {};
 window.plugin.portalIntelCache = portalIntelCache;
 
+console.log('[Intel Cache] Namespace created: window.plugin.portalIntelCache');
+
 // Configuration
 portalIntelCache.config = {
   storageKey: 'iitc_portal_intel_cache',
@@ -31,6 +46,8 @@ portalIntelCache.config = {
   maxCacheSize: 10000,
   debugMode: true
 };
+
+console.log('[Intel Cache] Configuration:', portalIntelCache.config);
 
 // Initialize cache and stats
 portalIntelCache.cache = {};
@@ -63,6 +80,7 @@ portalIntelCache.loadCache = function() {
  * Save cache to localStorage
  */
 portalIntelCache.saveCache = function() {
+  console.log('[Intel Cache] Saving cache to localStorage...');
   try {
     var cacheStr = JSON.stringify(portalIntelCache.cache);
     localStorage.setItem(portalIntelCache.config.storageKey, cacheStr);
@@ -232,12 +250,54 @@ portalIntelCache.storeIntel = function(intel) {
 /**
  * Hook: Capture portal details when viewed
  */
-portalIntelCache.onPortalDetailsUpdated = function(data) {
+portalIntelCache.onPortalDetailsUpdated = function (data) {
+  console.log('[Intel Cache] Hook triggered: portalDetailsUpdated');
+  console.log('[Intel Cache] Data received:', data);
+
+  if (!data || !data.portalDetails) {
+    console.error('[Intel Cache] No portal details found in the data.');
+    return;
+  }
+
+  console.log('[Intel Cache] Processing portal details for GUID:', data.guid);
   try {
     var intel = portalIntelCache.extractIntel(data);
     portalIntelCache.storeIntel(intel);
+    console.log('[Intel Cache] Portal details processed and stored successfully for GUID:', data.guid);
   } catch (e) {
-    console.error('[Intel Cache] Error capturing portal:', e);
+    console.error('[Intel Cache] Error processing portal details:', e);
+  }
+};
+
+/**
+ * Hook: Log portal selection and capture details if available
+ */
+portalIntelCache.onPortalSelected = function (data) {
+  console.log('[Intel Cache] Hook triggered: portalSelected');
+  console.log('[Intel Cache] Selected portal GUID:', data.selectedPortalGuid);
+  console.log('[Intel Cache] Unselected portal GUID:', data.unselectedPortalGuid);
+  console.log('[Intel Cache] Event:', data.event);
+
+  if (data.selectedPortalGuid) {
+    var portal = window.portals[data.selectedPortalGuid];
+    if (portal) {
+      console.log('[Intel Cache] Portal object found for GUID:', data.selectedPortalGuid);
+      if (portal.hasFullDetails()) {
+        var details = portal.getDetails();
+        console.log('[Intel Cache] Full portal details available:', details);
+        try {
+          var intel = portalIntelCache.extractIntel({ guid: data.selectedPortalGuid, portalDetails: details });
+          portalIntelCache.storeIntel(intel);
+          console.log('[Intel Cache] Portal details captured and stored on selection for GUID:', data.selectedPortalGuid);
+        } catch (e) {
+          console.error('[Intel Cache] Error processing portal details on selection:', e);
+        }
+      } else {
+        console.log('[Intel Cache] Portal details not yet fully loaded for GUID:', data.selectedPortalGuid, '- will capture on portalDetailsUpdated');
+      }
+    } else {
+      console.warn('[Intel Cache] Portal object not found for GUID:', data.selectedPortalGuid);
+    }
   }
 };
 
@@ -447,6 +507,8 @@ portalIntelCache.updateStatusDisplay = function() {
  * Setup UI controls
  */
 portalIntelCache.setupUI = function() {
+  console.log('[Intel Cache] Setting up UI...');
+  
   // Status bar at bottom
   var $status = $('<div>')
     .attr('id', 'intel-cache-status')
@@ -468,33 +530,58 @@ portalIntelCache.setupUI = function() {
     .click(portalIntelCache.showStats);
   
   $('body').append($status);
+  console.log('[Intel Cache] Status bar added to page');
   
-  // Toolbox buttons
-  IITC.toolbox.addButton({
-    label: 'Export Intel (JSON)',
-    title: 'Download cached portal intelligence as JSON for Azure SQL sync',
-    action: portalIntelCache.downloadCache
-  });
+  // Check if IITC.toolbox exists and has addButton method
+  console.log('[Intel Cache] Checking for IITC.toolbox...');
+  console.log('[Intel Cache] typeof IITC:', typeof IITC);
+  console.log('[Intel Cache] typeof IITC.toolbox:', typeof IITC !== 'undefined' ? typeof IITC.toolbox : 'IITC undefined');
+  console.log('[Intel Cache] IITC.toolbox.addButton:', typeof IITC !== 'undefined' && IITC.toolbox ? typeof IITC.toolbox.addButton : 'not available');
   
-  IITC.toolbox.addButton({
-    label: 'Export Intel (CSV)',
-    title: 'Download cached portal intelligence as CSV for Excel',
-    action: portalIntelCache.downloadCacheCSV
-  });
-  
-  IITC.toolbox.addButton({
-    label: 'Intel Stats',
-    title: 'View cache statistics',
-    action: portalIntelCache.showStats
-  });
-  
-  IITC.toolbox.addButton({
-    label: 'Clear Intel Cache',
-    title: 'Clear all cached portal data',
-    action: portalIntelCache.clearCache
-  });
+  if (typeof IITC !== 'undefined' && IITC.toolbox && typeof IITC.toolbox.addButton === 'function') {
+    console.log('[Intel Cache] ✅ IITC.toolbox.addButton available, adding buttons...');
+    
+    try {
+      IITC.toolbox.addButton({
+        label: 'Export Intel (JSON)',
+        title: 'Download cached portal intelligence as JSON for Azure SQL sync',
+        action: portalIntelCache.downloadCache
+      });
+      console.log('[Intel Cache] Added Export Intel (JSON) button');
+      
+      IITC.toolbox.addButton({
+        label: 'Export Intel (CSV)',
+        title: 'Download cached portal intelligence as CSV for Excel',
+        action: portalIntelCache.downloadCacheCSV
+      });
+      console.log('[Intel Cache] Added Export Intel (CSV) button');
+      
+      IITC.toolbox.addButton({
+        label: 'Intel Stats',
+        title: 'View cache statistics',
+        action: portalIntelCache.showStats
+      });
+      console.log('[Intel Cache] Added Intel Stats button');
+      
+      IITC.toolbox.addButton({
+        label: 'Clear Intel Cache',
+        title: 'Clear all cached portal data',
+        action: portalIntelCache.clearCache
+      });
+      console.log('[Intel Cache] Added Clear Intel Cache button');
+      
+      console.log('[Intel Cache] ✅ All toolbox buttons added successfully');
+    } catch (e) {
+      console.error('[Intel Cache] ❌ Error adding toolbox buttons:', e);
+      console.error('[Intel Cache] Error stack:', e.stack);
+    }
+  } else {
+    console.warn('[Intel Cache] ⚠️ IITC.toolbox.addButton not available - buttons not added');
+    console.log('[Intel Cache] Will rely on status bar for access to features');
+  }
   
   portalIntelCache.updateStatusDisplay();
+  console.log('[Intel Cache] ✅ UI setup complete');
 };
 
 /**
@@ -561,25 +648,63 @@ portalIntelCache.showStats = function() {
  * Setup function - called by IITC
  */
 var setup = function() {
+  console.log('[Intel Cache] ========== SETUP FUNCTION CALLED ==========');
+  console.log('[Intel Cache] Setup called at:', new Date().toISOString());
+  console.log('[Intel Cache] window object available:', typeof window !== 'undefined');
+  console.log('[Intel Cache] $ (jQuery) available:', typeof $ !== 'undefined');
+  console.log('[Intel Cache] window.addHook available:', typeof window.addHook !== 'undefined');
+  console.log('[Intel Cache] window.addHook type:', typeof window.addHook);
+  
+  // Debug: List all hook-related properties
+  if (typeof window !== 'undefined') {
+    var hookProps = Object.keys(window).filter(k => k.toLowerCase().includes('hook'));
+    console.log('[Intel Cache] Hook-related properties on window:', hookProps);
+  }
+  
   // Load existing cache
+  console.log('[Intel Cache] Loading cache from localStorage...');
   portalIntelCache.loadCache();
+  console.log('[Intel Cache] ✅ Cache loaded, total portals:', Object.keys(portalIntelCache.cache).length);
   
   // Hook into portal details
-  window.addHook('portalDetailsUpdated', portalIntelCache.onPortalDetailsUpdated);
+  console.log('[Intel Cache] ========== REGISTERING HOOKS ==========');
+  console.log('[Intel Cache] Attempting to register portalDetailsUpdated hook...');
+  
+  if (typeof window.addHook === 'function') {
+    try {
+      window.addHook('portalDetailsUpdated', portalIntelCache.onPortalDetailsUpdated);
+      console.log('[Intel Cache] ✅ Hook registered successfully for portalDetailsUpdated');
+      
+      window.addHook('portalSelected', portalIntelCache.onPortalSelected);
+      console.log('[Intel Cache] ✅ Hook registered successfully for portalSelected');
+    } catch (e) {
+      console.error('[Intel Cache] ❌ Error registering hooks:', e);
+    }
+  } else {
+    console.error('[Intel Cache] ❌ window.addHook is not available. Hook registration failed.');
+  }
   
   // Setup UI
+  console.log('[Intel Cache] Setting up UI...');
   portalIntelCache.setupUI();
   
   // Periodic auto-save every 30 seconds
+  console.log('[Intel Cache] Setting up auto-save interval (30s)...');
   setInterval(function() {
     if (portalIntelCache.config.autoSave) {
       portalIntelCache.saveCache();
     }
   }, 30000);
+  console.log('[Intel Cache] ✅ Auto-save interval configured');
   
   // Make globally accessible for automation
   window.portalIntelCache = portalIntelCache;
+  console.log('[Intel Cache] ✅ Exposed as window.portalIntelCache');
   
-  console.log('[Intel Cache] Plugin initialized. Ready to capture portal intelligence.');
+  console.log('[Intel Cache] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
+  console.log('[Intel Cache] Plugin version: 0.1.3');
   console.log('[Intel Cache] Current cache size:', Object.keys(portalIntelCache.cache).length, 'portals');
+  console.log('[Intel Cache] Debug mode:', portalIntelCache.config.debugMode);
+  console.log('[Intel Cache] ========== NOW WAITING FOR PORTAL SELECTION ==========');
+  console.log('[Intel Cache] Select a portal to test the hook...');
 };
