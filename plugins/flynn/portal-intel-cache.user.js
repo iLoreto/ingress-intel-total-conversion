@@ -2,7 +2,7 @@
 // @author         YourName
 // @name           Portal Intelligence Cache
 // @category       Info
-// @version        0.1.3
+// @version        0.1.8
 // @description    Captures portal details to browser localStorage for later Azure SQL sync
 // @id             portal-intel-cache
 // @namespace      https://github.com/IITC-CE/ingress-intel-total-conversion
@@ -10,7 +10,7 @@
 // @grant          none
 // ==/UserScript==
 
-console.log('[Intel Cache] Updated to version 0.1.3')
+console.log('[Intel Cache] Updated to version 0.1.8')
 
 /* exported setup --eslint */
 /* global IITC -- eslint */
@@ -19,6 +19,26 @@ console.log('[Intel Cache] ========== PLUGIN LOADING START ==========');
 console.log('[Intel Cache] Timestamp:', new Date().toISOString());
 
 var changelog = [
+  {
+    version: '0.1.8',
+    changes: ['Fixed setup function to initialize directly when called by IITC']
+  },
+  {
+    version: '0.1.7',
+    changes: ['Added debug logs to IITC loading detection']
+  },
+  {
+    version: '0.1.6',
+    changes: ['Improved IITC loading detection with polling mechanism']
+  },
+  {
+    version: '0.1.5',
+    changes: ['Fixed setup timing by hooking to iitcLoaded event']
+  },
+  {
+    version: '0.1.4',
+    changes: ['Version bump to force script reload', 'Fixed window.plugin initialization']
+  },
   {
     version: '0.1.3',
     changes: ['Added portalSelected hook for immediate capture on portal selection', 'Enhanced logging for portal details on selection']
@@ -35,6 +55,7 @@ var changelog = [
 
 // Use own namespace for plugin
 var portalIntelCache = {};
+window.plugin = window.plugin || {};
 window.plugin.portalIntelCache = portalIntelCache;
 
 console.log('[Intel Cache] Namespace created: window.plugin.portalIntelCache');
@@ -702,9 +723,15 @@ var setup = function() {
   console.log('[Intel Cache] ✅ Exposed as window.portalIntelCache');
   
   console.log('[Intel Cache] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
-  console.log('[Intel Cache] Plugin version: 0.1.3');
+  console.log('[Intel Cache] Plugin version: 0.1.8');
   console.log('[Intel Cache] Current cache size:', Object.keys(portalIntelCache.cache).length, 'portals');
   console.log('[Intel Cache] Debug mode:', portalIntelCache.config.debugMode);
   console.log('[Intel Cache] ========== NOW WAITING FOR PORTAL SELECTION ==========');
   console.log('[Intel Cache] Select a portal to test the hook...');
 };
+
+// Register plugin with IITC boot sequence so wrapper or IITC will call setup
+window.bootPlugins = window.bootPlugins || [];
+window.bootPlugins.push(setup);
+// If IITC already loaded, run setup now
+if (window.iitcLoaded) setup();

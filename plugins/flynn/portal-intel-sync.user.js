@@ -2,7 +2,7 @@
 // @author         YourName
 // @name           Portal Intel Azure Sync
 // @category       Info
-// @version        0.1.3
+// @version        0.1.8
 // @description    Sync cached portal intelligence to Azure SQL Database
 // @id             portal-intel-sync
 // @namespace      https://github.com/IITC-CE/ingress-intel-total-conversion
@@ -10,7 +10,8 @@
 // @grant          none
 // ==/UserScript==
 
-console.log('[Azure Sync] Updated to version 0.1.3');
+console.log('[Azure Sync] Updated to version 0.1.8');
+console.log('[Azure Sync] Plugin version: 0.1.8');
 
 /* exported setup --eslint */
 /* global IITC -- eslint */
@@ -19,6 +20,26 @@ console.log('[Azure Sync] ========== PLUGIN LOADING START ==========');
 console.log('[Azure Sync] Timestamp:', new Date().toISOString());
 
 var changelog = [
+  {
+    version: '0.1.8',
+    changes: ['Fixed setup function to initialize directly when called by IITC']
+  },
+  {
+    version: '0.1.7',
+    changes: ['Added debug logs to IITC loading detection']
+  },
+  {
+    version: '0.1.6',
+    changes: ['Improved IITC loading detection with polling mechanism']
+  },
+  {
+    version: '0.1.5',
+    changes: ['Fixed setup timing by hooking to iitcLoaded event']
+  },
+  {
+    version: '0.1.4',
+    changes: ['Version bump to force script reload', 'Fixed window.plugin initialization']
+  },
   {
     version: '0.1.1',
     changes: ['Added comprehensive debugging', 'Fixed API endpoint handling', 'Improved error reporting']
@@ -30,6 +51,7 @@ var changelog = [
 ];
 
 var portalIntelSync = {};
+window.plugin = window.plugin || {};
 window.plugin.portalIntelSync = portalIntelSync;
 
 console.log('[Azure Sync] Namespace created: window.plugin.portalIntelSync');
@@ -591,8 +613,14 @@ var setup = function() {
   console.log('[Azure Sync] ✅ Exposed as window.portalIntelSync');
   
   console.log('[Azure Sync] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
-  console.log('[Azure Sync] Plugin version: 0.1.1');
+  console.log('[Azure Sync] Plugin version: 0.1.8');
   console.log('[Azure Sync] Ready to sync portal data to Azure SQL');
   console.log('[Azure Sync] Use "Configure Azure Sync" button to set endpoint');
   console.log('[Azure Sync] ==========================================================');
 };
+
+// Register plugin with IITC boot sequence so wrapper or IITC will call setup
+window.bootPlugins = window.bootPlugins || [];
+window.bootPlugins.push(setup);
+// If IITC already loaded, run setup now
+if (window.iitcLoaded) setup();
