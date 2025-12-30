@@ -909,6 +909,13 @@ portalIntelCache.setupUI = function() {
       console.log('[Intel Cache] Added Export Intel (CSV) button');
       
       IITC.toolbox.addButton({
+        label: 'Import Intel',
+        title: 'Import cached portal data from JSON file',
+        action: portalIntelCache.importCache
+      });
+      console.log('[Intel Cache] Added Import Intel button');
+      
+      IITC.toolbox.addButton({
         label: 'Intel Stats',
         title: 'View cache statistics',
         action: portalIntelCache.showStats
@@ -1047,77 +1054,6 @@ portalIntelCache.showStats = function() {
     width: 450
   });
 };
-
-/**
- * Setup function - called by IITC
- */
-var setup = function() {
-  console.log('[Intel Cache] ========== SETUP FUNCTION CALLED ==========');
-  console.log('[Intel Cache] Setup called at:', new Date().toISOString());
-  console.log('[Intel Cache] window object available:', typeof window !== 'undefined');
-  console.log('[Intel Cache] $ (jQuery) available:', typeof $ !== 'undefined');
-  console.log('[Intel Cache] window.addHook available:', typeof window.addHook !== 'undefined');
-  console.log('[Intel Cache] window.addHook type:', typeof window.addHook);
-  
-  // Debug: List all hook-related properties
-  if (typeof window !== 'undefined') {
-    var hookProps = Object.keys(window).filter(k => k.toLowerCase().includes('hook'));
-    console.log('[Intel Cache] Hook-related properties on window:', hookProps);
-  }
-  
-  // Load existing cache
-  console.log('[Intel Cache] Loading cache from localStorage...');
-  portalIntelCache.loadCache();
-  console.log('[Intel Cache] ✅ Cache loaded, total portals:', Object.keys(portalIntelCache.cache).length);
-  
-  // Hook into portal details
-  console.log('[Intel Cache] ========== REGISTERING HOOKS ==========');
-  console.log('[Intel Cache] Attempting to register portalDetailsUpdated hook...');
-  
-  if (typeof window.addHook === 'function') {
-    try {
-      window.addHook('portalDetailsUpdated', portalIntelCache.onPortalDetailsUpdated);
-      console.log('[Intel Cache] ✅ Hook registered successfully for portalDetailsUpdated');
-      
-      window.addHook('portalSelected', portalIntelCache.onPortalSelected);
-      console.log('[Intel Cache] ✅ Hook registered successfully for portalSelected');
-    } catch (e) {
-      console.error('[Intel Cache] ❌ Error registering hooks:', e);
-    }
-  } else {
-    console.error('[Intel Cache] ❌ window.addHook is not available. Hook registration failed.');
-  }
-  
-  // Setup UI
-  console.log('[Intel Cache] Setting up UI...');
-  portalIntelCache.setupUI();
-  
-  // Periodic auto-save every 30 seconds
-  console.log('[Intel Cache] Setting up auto-save interval (30s)...');
-  setInterval(function() {
-    if (portalIntelCache.config.autoSave) {
-      portalIntelCache.saveCache();
-    }
-  }, 30000);
-  console.log('[Intel Cache] ✅ Auto-save interval configured');
-  
-  // Make globally accessible for automation
-  window.portalIntelCache = portalIntelCache;
-  console.log('[Intel Cache] ✅ Exposed as window.portalIntelCache');
-  
-  console.log('[Intel Cache] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
-  console.log('[Intel Cache] Plugin version: 0.3.0');
-  console.log('[Intel Cache] Current cache size:', Object.keys(portalIntelCache.cache).length, 'portals');
-  console.log('[Intel Cache] Debug mode:', portalIntelCache.config.debugMode);
-  console.log('[Intel Cache] ========== NOW WAITING FOR PORTAL SELECTION ==========');
-  console.log('[Intel Cache] Select a portal to test the hook...');
-};
-
-// Register plugin with IITC boot sequence so wrapper or IITC will call setup
-window.bootPlugins = window.bootPlugins || [];
-window.bootPlugins.push(setup);
-// If IITC already loaded, run setup now
-if (window.iitcLoaded) setup();
 
 /**
  * Import cache from JSON file
@@ -1421,3 +1357,74 @@ portalIntelCache.executeImport = function(importedData, mode, filters) {
   alert(message);
   console.log('[Intel Cache] Import complete:', stats);
 };
+
+/**
+ * Setup function - called by IITC
+ */
+var setup = function() {
+  console.log('[Intel Cache] ========== SETUP FUNCTION CALLED ==========');
+  console.log('[Intel Cache] Setup called at:', new Date().toISOString());
+  console.log('[Intel Cache] window object available:', typeof window !== 'undefined');
+  console.log('[Intel Cache] $ (jQuery) available:', typeof $ !== 'undefined');
+  console.log('[Intel Cache] window.addHook available:', typeof window.addHook !== 'undefined');
+  console.log('[Intel Cache] window.addHook type:', typeof window.addHook);
+  
+  // Debug: List all hook-related properties
+  if (typeof window !== 'undefined') {
+    var hookProps = Object.keys(window).filter(k => k.toLowerCase().includes('hook'));
+    console.log('[Intel Cache] Hook-related properties on window:', hookProps);
+  }
+  
+  // Load existing cache
+  console.log('[Intel Cache] Loading cache from localStorage...');
+  portalIntelCache.loadCache();
+  console.log('[Intel Cache] ✅ Cache loaded, total portals:', Object.keys(portalIntelCache.cache).length);
+  
+  // Hook into portal details
+  console.log('[Intel Cache] ========== REGISTERING HOOKS ==========');
+  console.log('[Intel Cache] Attempting to register portalDetailsUpdated hook...');
+  
+  if (typeof window.addHook === 'function') {
+    try {
+      window.addHook('portalDetailsUpdated', portalIntelCache.onPortalDetailsUpdated);
+      console.log('[Intel Cache] ✅ Hook registered successfully for portalDetailsUpdated');
+      
+      window.addHook('portalSelected', portalIntelCache.onPortalSelected);
+      console.log('[Intel Cache] ✅ Hook registered successfully for portalSelected');
+    } catch (e) {
+      console.error('[Intel Cache] ❌ Error registering hooks:', e);
+    }
+  } else {
+    console.error('[Intel Cache] ❌ window.addHook is not available. Hook registration failed.');
+  }
+  
+  // Setup UI
+  console.log('[Intel Cache] Setting up UI...');
+  portalIntelCache.setupUI();
+  
+  // Periodic auto-save every 30 seconds
+  console.log('[Intel Cache] Setting up auto-save interval (30s)...');
+  setInterval(function() {
+    if (portalIntelCache.config.autoSave) {
+      portalIntelCache.saveCache();
+    }
+  }, 30000);
+  console.log('[Intel Cache] ✅ Auto-save interval configured');
+  
+  // Make globally accessible for automation
+  window.portalIntelCache = portalIntelCache;
+  console.log('[Intel Cache] ✅ Exposed as window.portalIntelCache');
+  
+  console.log('[Intel Cache] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
+  console.log('[Intel Cache] Plugin version: 0.3.0');
+  console.log('[Intel Cache] Current cache size:', Object.keys(portalIntelCache.cache).length, 'portals');
+  console.log('[Intel Cache] Debug mode:', portalIntelCache.config.debugMode);
+  console.log('[Intel Cache] ========== NOW WAITING FOR PORTAL SELECTION ==========');
+  console.log('[Intel Cache] Select a portal to test the hook...');
+};
+
+// Register plugin with IITC boot sequence so wrapper or IITC will call setup
+window.bootPlugins = window.bootPlugins || [];
+window.bootPlugins.push(setup);
+// If IITC already loaded, run setup now
+if (window.iitcLoaded) setup();
