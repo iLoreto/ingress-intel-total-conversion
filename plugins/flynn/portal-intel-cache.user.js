@@ -2,15 +2,15 @@
 // @author         YourName
 // @name           Portal Intelligence Cache
 // @category       Info
-// @version        0.1.8
-// @description    Captures portal details to browser localStorage for later Azure SQL sync
+// @version        0.3.0
+// @description    Captures portal details to browser localStorage for later Azure SQL sync with sequential scan
 // @id             portal-intel-cache
 // @namespace      https://github.com/IITC-CE/ingress-intel-total-conversion
 // @match          https://intel.ingress.com/*
 // @grant          none
 // ==/UserScript==
 
-console.log('[Intel Cache] Updated to version 0.1.8')
+console.log('[Intel Cache] Updated to version 0.3.0')
 
 /* exported setup --eslint */
 /* global IITC -- eslint */
@@ -19,6 +19,25 @@ console.log('[Intel Cache] ========== PLUGIN LOADING START ==========');
 console.log('[Intel Cache] Timestamp:', new Date().toISOString());
 
 var changelog = [
+  {
+    version: '0.3.0',
+    changes: [
+      'Added checkbox to toggle between View and Synch Cache scanning', 
+      'View mode (default): Only scans VISIBLE portals on map (respects filters, ~78 portals)',
+      'Synch Cache mode: Scans ALL portals in persistent localStorage cache by panning to each location',
+      'Cache mode automatically pans map to each portal and loads tiles (1.5s delay per portal)',
+      'Fixed: View mode now properly filters to visible portals, not all loaded tiles',
+      'Status display shows which source is being used (View/Cache) and progress'
+    ]
+  },
+  {
+    version: '0.2.0',
+    changes: ['Added sequential portal scanning with Start/Pause/Stop controls in status bar', 'Integrated with superdata.js loaded portals', '1-second throttle between portal detail loads', 'Progress tracking display']
+  },
+  {
+    version: '0.1.9',
+    changes: ['Version bump for compatibility with Azure Sync 0.1.9']
+  },
   {
     version: '0.1.8',
     changes: ['Fixed setup function to initialize directly when called by IITC']
@@ -77,6 +96,19 @@ portalIntelCache.stats = {
   lastUpdate: null,
   pendingSync: 0,
   sessionCaptures: 0
+};
+
+// Sequential processing state
+portalIntelCache.sequential = {
+  loadedPortals: [],  // All portals currently in view (from window.portals)
+  isProcessing: false,
+  isPaused: false,
+  currentIndex: 0,
+  processedCount: 0,
+  totalToProcess: 0,
+  lastProcessTime: 0,
+  processingTimeout: null,
+  useCache: false  // New: toggle between View and Cache
 };
 
 /**
@@ -236,41 +268,44 @@ portalIntelCache.extractIntel = function(data) {
 portalIntelCache.storeIntel = function(intel) {
   var guid = intel.guid;
   var isNew = !portalIntelCache.cache[guid];
-  
+
   // Update existing entry
   if (!isNew) {
     var existing = portalIntelCache.cache[guid];
     intel.firstSeen = existing.firstSeen;
     intel.updateCount = (existing.updateCount || 1) + 1;
   }
-  
+
   // Store in cache
   portalIntelCache.cache[guid] = intel;
-  
+
   // Update stats
   if (isNew) {
     portalIntelCache.stats.totalCaptured++;
     portalIntelCache.stats.sessionCaptures++;
   }
   portalIntelCache.stats.pendingSync++;
-  
-  // Auto-save
+
+  // Save cache only if autoSave is enabled
   if (portalIntelCache.config.autoSave) {
-    portalIntelCache.saveCache();
+    clearTimeout(portalIntelCache._saveTimeout);
+    portalIntelCache._saveTimeout = setTimeout(() => {
+      portalIntelCache.saveCache();
+    }, 1000); // Debounce saves to avoid excessive writes
   }
-  
+
   // Update UI
   portalIntelCache.updateStatusDisplay();
-  
+
   if (portalIntelCache.config.debugMode) {
     var action = isNew ? 'NEW' : 'UPDATE';
     console.log('[Intel Cache] ' + action + ':', intel.title, '(' + guid + ')');
   }
 };
 
-/**
- * Hook: Capture portal details when viewed
- */
+// Prevent duplicate sync updates by tracking processed GUIDs
+portalIntelCache.processedGuids = new Set();
+
 portalIntelCache.onPortalDetailsUpdated = function (data) {
   console.log('[Intel Cache] Hook triggered: portalDetailsUpdated');
   console.log('[Intel Cache] Data received:', data);
@@ -280,19 +315,22 @@ portalIntelCache.onPortalDetailsUpdated = function (data) {
     return;
   }
 
+  if (portalIntelCache.processedGuids.has(data.guid)) {
+    console.log('[Intel Cache] Duplicate update ignored for GUID:', data.guid);
+    return;
+  }
+
   console.log('[Intel Cache] Processing portal details for GUID:', data.guid);
   try {
     var intel = portalIntelCache.extractIntel(data);
     portalIntelCache.storeIntel(intel);
+    portalIntelCache.processedGuids.add(data.guid);
     console.log('[Intel Cache] Portal details processed and stored successfully for GUID:', data.guid);
   } catch (e) {
     console.error('[Intel Cache] Error processing portal details:', e);
   }
 };
 
-/**
- * Hook: Log portal selection and capture details if available
- */
 portalIntelCache.onPortalSelected = function (data) {
   console.log('[Intel Cache] Hook triggered: portalSelected');
   console.log('[Intel Cache] Selected portal GUID:', data.selectedPortalGuid);
@@ -300,6 +338,11 @@ portalIntelCache.onPortalSelected = function (data) {
   console.log('[Intel Cache] Event:', data.event);
 
   if (data.selectedPortalGuid) {
+    if (portalIntelCache.processedGuids.has(data.selectedPortalGuid)) {
+      console.log('[Intel Cache] Duplicate selection ignored for GUID:', data.selectedPortalGuid);
+      return;
+    }
+
     var portal = window.portals[data.selectedPortalGuid];
     if (portal) {
       console.log('[Intel Cache] Portal object found for GUID:', data.selectedPortalGuid);
@@ -309,6 +352,7 @@ portalIntelCache.onPortalSelected = function (data) {
         try {
           var intel = portalIntelCache.extractIntel({ guid: data.selectedPortalGuid, portalDetails: details });
           portalIntelCache.storeIntel(intel);
+          portalIntelCache.processedGuids.add(data.selectedPortalGuid);
           console.log('[Intel Cache] Portal details captured and stored on selection for GUID:', data.selectedPortalGuid);
         } catch (e) {
           console.error('[Intel Cache] Error processing portal details on selection:', e);
@@ -510,18 +554,215 @@ portalIntelCache.cleanupOldEntries = function() {
 };
 
 /**
+ * Capture all currently loaded portals from the map view
+ */
+portalIntelCache.updateLoadedPortals = function() {
+  if (portalIntelCache.sequential.useCache) {
+    // Use synch cache portals (those stored for Azure sync)
+    portalIntelCache.sequential.loadedPortals = Object.keys(portalIntelCache.cache);
+    console.log('[Intel Cache] Updated from synch cache:', portalIntelCache.sequential.loadedPortals.length);
+  } else {
+    // Use only VISIBLE portals in current view (respects filters and map bounds)
+    var visiblePortals = [];
+    var displayBounds = window.map.getBounds();
+    
+    // Iterate through window.portals and filter for visible ones
+    for (var guid in window.portals) {
+      var portal = window.portals[guid];
+      
+      // Check if portal is actually on the map (visible)
+      if (window.map.hasLayer(portal)) {
+        // Double-check it's within display bounds
+        if (displayBounds.contains(portal.getLatLng())) {
+          // Check if portal has title (not a placeholder)
+          if (portal.options && portal.options.data && portal.options.data.title) {
+            visiblePortals.push(guid);
+          }
+        }
+      }
+    }
+    
+    portalIntelCache.sequential.loadedPortals = visiblePortals;
+    console.log('[Intel Cache] Updated from visible portals in view:', portalIntelCache.sequential.loadedPortals.length, '(out of', Object.keys(window.portals || {}).length, 'loaded)');
+  }
+};
+
+/**
+ * Start sequential portal detail extraction
+ */
+portalIntelCache.startSequentialProcessing = function() {
+  if (portalIntelCache.sequential.isProcessing && !portalIntelCache.sequential.isPaused) {
+    console.log('[Intel Cache] Already processing');
+    return;
+  }
+
+  // If paused, resume from current index
+  if (portalIntelCache.sequential.isPaused) {
+    portalIntelCache.sequential.isPaused = false;
+    console.log('[Intel Cache] Resuming from index:', portalIntelCache.sequential.currentIndex);
+    portalIntelCache.updateStatusDisplay();
+    portalIntelCache.processNextPortal();
+    return;
+  }
+
+  // Fresh start
+  portalIntelCache.updateLoadedPortals();
+  portalIntelCache.sequential.isProcessing = true;
+  portalIntelCache.sequential.isPaused = false;
+  portalIntelCache.sequential.currentIndex = 0;
+  portalIntelCache.sequential.processedCount = 0;
+  portalIntelCache.sequential.totalToProcess = portalIntelCache.sequential.loadedPortals.length;
+
+  console.log('[Intel Cache] Starting sequential processing of', portalIntelCache.sequential.totalToProcess, 'portals from', portalIntelCache.sequential.useCache ? 'cache' : 'view');
+  portalIntelCache.updateStatusDisplay();
+  portalIntelCache.processNextPortal();
+};
+
+/**
+ * Pause sequential processing (remember position)
+ */
+portalIntelCache.pauseSequentialProcessing = function() {
+  if (!portalIntelCache.sequential.isProcessing) {
+    console.log('[Intel Cache] Not currently processing');
+    return;
+  }
+
+  portalIntelCache.sequential.isPaused = true;
+  if (portalIntelCache.sequential.processingTimeout) {
+    clearTimeout(portalIntelCache.sequential.processingTimeout);
+    portalIntelCache.sequential.processingTimeout = null;
+  }
+  console.log('[Intel Cache] Paused at index:', portalIntelCache.sequential.currentIndex);
+  portalIntelCache.updateStatusDisplay();
+};
+
+/**
+ * Stop sequential processing (reset position)
+ */
+portalIntelCache.stopSequentialProcessing = function() {
+  portalIntelCache.sequential.isProcessing = false;
+  portalIntelCache.sequential.isPaused = false;
+  portalIntelCache.sequential.currentIndex = 0;
+  portalIntelCache.sequential.processedCount = 0;
+
+  if (portalIntelCache.sequential.processingTimeout) {
+    clearTimeout(portalIntelCache.sequential.processingTimeout);
+    portalIntelCache.sequential.processingTimeout = null;
+  }
+
+  console.log('[Intel Cache] Stopped sequential processing');
+  portalIntelCache.updateStatusDisplay();
+};
+
+/**
+ * Process next portal in sequence
+ */
+portalIntelCache.processNextPortal = function() {
+  if (!portalIntelCache.sequential.isProcessing || portalIntelCache.sequential.isPaused) {
+    return;
+  }
+
+  // Check if we've reached the end
+  if (portalIntelCache.sequential.currentIndex >= portalIntelCache.sequential.loadedPortals.length) {
+    console.log('[Intel Cache] Sequential processing complete!');
+    portalIntelCache.sequential.isProcessing = false;
+    portalIntelCache.updateStatusDisplay();
+    return;
+  }
+
+  var guid = portalIntelCache.sequential.loadedPortals[portalIntelCache.sequential.currentIndex];
+  
+  if (portalIntelCache.sequential.useCache) {
+    // When using synch cache, we process ALL cached portals
+    // We need to pan to each portal's location and load its details
+    var cachedPortal = portalIntelCache.cache[guid];
+    
+    if (cachedPortal) {
+      // Pan map to portal location (this will load tiles if needed)
+      var lat = cachedPortal.lat;
+      var lng = cachedPortal.lng;
+      
+      // Set map view to portal location
+      window.map.setView([lat, lng], window.map.getZoom());
+      
+      console.log('[Intel Cache] Processing cached portal', portalIntelCache.sequential.currentIndex + 1, 'of', portalIntelCache.sequential.totalToProcess, ':', cachedPortal.title, '(' + guid + ')');
+      
+      // Wait for tiles to load, then trigger portal details
+      setTimeout(function() {
+        // Check if portal is now loaded
+        if (window.portals[guid]) {
+          window.renderPortalDetails(guid);
+          console.log('[Intel Cache] Loaded details for cached portal:', cachedPortal.title);
+        } else {
+          console.warn('[Intel Cache] Portal not loaded after panning, may need more time:', cachedPortal.title);
+          // Still try to render in case it loads
+          window.renderPortalDetails(guid);
+        }
+      }, 500); // Give 500ms for tiles to load before requesting details
+      
+    } else {
+      console.error('[Intel Cache] Cached portal data missing for GUID:', guid);
+    }
+  } else {
+    // Using visible view portals - these should all be accessible
+    if (window.portals[guid] && window.map.hasLayer(window.portals[guid])) {
+      // Select the portal to trigger detail loading
+      window.renderPortalDetails(guid);
+      console.log('[Intel Cache] Processing visible portal', portalIntelCache.sequential.currentIndex + 1, 'of', portalIntelCache.sequential.totalToProcess, ':', guid);
+    } else {
+      console.warn('[Intel Cache] Visible portal no longer on map, skipping:', guid);
+    }
+  }
+
+  // Move to next portal after delay
+  portalIntelCache.sequential.currentIndex++;
+  portalIntelCache.sequential.processedCount++;
+  portalIntelCache.updateStatusDisplay();
+
+  // When using cache, need longer delay to account for map panning and tile loading
+  var delay = portalIntelCache.sequential.useCache ? 1500 : 1000;
+  
+  portalIntelCache.sequential.processingTimeout = setTimeout(function() {
+    portalIntelCache.processNextPortal();
+  }, delay);
+};
+
+/**
+ * Toggle between View and Cache scanning
+ */
+portalIntelCache.toggleScanSource = function() {
+  portalIntelCache.sequential.useCache = !portalIntelCache.sequential.useCache;
+  console.log('[Intel Cache] Scan source toggled to:', portalIntelCache.sequential.useCache ? 'Cache' : 'View');
+  portalIntelCache.updateStatusDisplay();
+  
+  // Update checkbox state
+  var $checkbox = $('#intel-cache-use-cache');
+  if ($checkbox.length > 0) {
+    $checkbox.prop('checked', portalIntelCache.sequential.useCache);
+  }
+};
+
+/**
  * Update status display in UI
  */
 portalIntelCache.updateStatusDisplay = function() {
   var $status = $('#intel-cache-status');
   if ($status.length === 0) return;
   
-  $status.html(
-    '<strong>📊 Intel Cache:</strong> ' +
-    portalIntelCache.stats.totalCaptured + ' total | ' +
-    '<span style="color: #0f0;">' + portalIntelCache.stats.sessionCaptures + ' this session</span> | ' +
-    '<span style="color: #ff0;">' + portalIntelCache.stats.pendingSync + ' pending sync</span>'
-  );
+  var statsHtml = '<strong>📊 Intel Cache:</strong> ' +
+    portalIntelCache.stats.totalCaptured + ' cached | ' +
+    '<span style="color: #0f0;">' + portalIntelCache.stats.sessionCaptures + ' session</span> | ' +
+    '<span style="color: #ff0;">' + portalIntelCache.stats.pendingSync + ' pending</span>';
+
+  // Add sequential processing status
+  if (portalIntelCache.sequential.isProcessing || portalIntelCache.sequential.currentIndex > 0) {
+    var progress = portalIntelCache.sequential.processedCount + ' / ' + portalIntelCache.sequential.totalToProcess;
+    var statusIndicator = portalIntelCache.sequential.isProcessing && !portalIntelCache.sequential.isPaused ? '⏳' : '⏸';
+    var source = portalIntelCache.sequential.useCache ? 'Cache' : 'View';
+    statsHtml += ' | <span style="color: #ff6;">' + statusIndicator + ' ' + progress + ' (' + source + ')</span>';
+  }
+
+  $status.html(statsHtml);
 };
 
 /**
@@ -530,9 +771,34 @@ portalIntelCache.updateStatusDisplay = function() {
 portalIntelCache.setupUI = function() {
   console.log('[Intel Cache] Setting up UI...');
   
-  // Status bar at bottom
-  var $status = $('<div>')
-    .attr('id', 'intel-cache-status')
+  // Create button styles
+  var buttonStyle = {
+    'margin': '0 3px',
+    'padding': '2px 6px',
+    'border': '1px solid #0f0',
+    'background': 'rgba(0, 0, 0, 0.7)',
+    'color': '#0f0',
+    'cursor': 'pointer',
+    'font-family': 'Courier New, monospace',
+    'font-size': '10px',
+    'font-weight': 'bold',
+    'vertical-align': 'middle'
+  };
+
+  var checkboxLabelStyle = {
+    'margin': '0 3px',
+    'padding': '2px 6px',
+    'color': '#0f0',
+    'cursor': 'pointer',
+    'font-family': 'Courier New, monospace',
+    'font-size': '10px',
+    'font-weight': 'bold',
+    'vertical-align': 'middle'
+  };
+
+  // Status bar container
+  var $statusContainer = $('<div>')
+    .attr('id', 'intel-cache-container')
     .css({
       'position': 'fixed',
       'bottom': '0',
@@ -542,25 +808,90 @@ portalIntelCache.setupUI = function() {
       'padding': '8px 15px',
       'font-family': 'Courier New, monospace',
       'font-size': '11px',
-      'z-index': 9999,
+      'z-index': '9999',
       'border-top': '2px solid #0f0',
       'border-right': '2px solid #0f0',
       'box-shadow': '0 0 10px rgba(0, 255, 0, 0.5)',
-      'cursor': 'pointer'
+      'min-height': '20px'
+    });
+
+  // Status text
+  var $status = $('<div>')
+    .attr('id', 'intel-cache-status')
+    .css({
+      'display': 'inline-block',
+      'cursor': 'pointer',
+      'margin-right': '10px'
     })
     .click(portalIntelCache.showStats);
+
+  // Controls
+  var $controls = $('<div>')
+    .attr('id', 'intel-cache-controls')
+    .css({
+      'display': 'inline-block'
+    });
+
+  // Start button
+  var $btnStart = $('<button>')
+    .text('▶ Start')
+    .css(buttonStyle)
+    .click(function(e) {
+      e.stopPropagation();
+      portalIntelCache.startSequentialProcessing();
+    });
+
+  // Pause button
+  var $btnPause = $('<button>')
+    .text('⏸ Pause')
+    .css(buttonStyle)
+    .click(function(e) {
+      e.stopPropagation();
+      portalIntelCache.pauseSequentialProcessing();
+    });
+
+  // Stop button
+  var $btnStop = $('<button>')
+    .text('⏹ Stop')
+    .css(buttonStyle)
+    .click(function(e) {
+      e.stopPropagation();
+      portalIntelCache.stopSequentialProcessing();
+    });
+
+  // Checkbox for Cache/View toggle
+  var $checkboxLabel = $('<label>')
+    .css(checkboxLabelStyle)
+    .text(' Use Cache');
+
+  var $checkbox = $('<input>')
+    .attr({
+      'type': 'checkbox',
+      'id': 'intel-cache-use-cache'
+    })
+    .prop('checked', portalIntelCache.sequential.useCache)
+    .css({
+      'margin-right': '3px',
+      'vertical-align': 'middle',
+      'cursor': 'pointer'
+    })
+    .change(function(e) {
+      e.stopPropagation();
+      portalIntelCache.toggleScanSource();
+    });
+
+  $checkboxLabel.prepend($checkbox);
+  $controls.append($btnStart).append($btnPause).append($btnStop).append($checkboxLabel);
+  $statusContainer.append($status).append($controls);
+  $('body').append($statusContainer);
   
-  $('body').append($status);
-  console.log('[Intel Cache] Status bar added to page');
+  console.log('[Intel Cache] Status bar with controls added to page');
   
   // Check if IITC.toolbox exists and has addButton method
   console.log('[Intel Cache] Checking for IITC.toolbox...');
-  console.log('[Intel Cache] typeof IITC:', typeof IITC);
-  console.log('[Intel Cache] typeof IITC.toolbox:', typeof IITC !== 'undefined' ? typeof IITC.toolbox : 'IITC undefined');
-  console.log('[Intel Cache] IITC.toolbox.addButton:', typeof IITC !== 'undefined' && IITC.toolbox ? typeof IITC.toolbox.addButton : 'not available');
   
   if (typeof IITC !== 'undefined' && IITC.toolbox && typeof IITC.toolbox.addButton === 'function') {
-    console.log('[Intel Cache] ✅ IITC.toolbox.addButton available, adding buttons...');
+    console.log('[Intel Cache] ✅ IITC.toolbox.addButton available, adding export buttons...');
     
     try {
       IITC.toolbox.addButton({
@@ -591,14 +922,12 @@ portalIntelCache.setupUI = function() {
       });
       console.log('[Intel Cache] Added Clear Intel Cache button');
       
-      console.log('[Intel Cache] ✅ All toolbox buttons added successfully');
+      console.log('[Intel Cache] ✅ All export buttons added successfully');
     } catch (e) {
       console.error('[Intel Cache] ❌ Error adding toolbox buttons:', e);
-      console.error('[Intel Cache] Error stack:', e.stack);
     }
   } else {
-    console.warn('[Intel Cache] ⚠️ IITC.toolbox.addButton not available - buttons not added');
-    console.log('[Intel Cache] Will rely on status bar for access to features');
+    console.warn('[Intel Cache] ⚠️ IITC.toolbox.addButton not available');
   }
   
   portalIntelCache.updateStatusDisplay();
@@ -612,21 +941,67 @@ portalIntelCache.showStats = function() {
   var cacheSize = JSON.stringify(portalIntelCache.cache).length;
   var cacheSizeKB = (cacheSize / 1024).toFixed(2);
   var cacheSizeMB = (cacheSize / 1024 / 1024).toFixed(2);
-  
+
   // Calculate team breakdown
-  var teamStats = { RESISTANCE: 0, ENLIGHTENED: 0, MACHINA: 0, NEUTRAL: 0 };
+  var teamStats = { RESISTANCE: 0, ENLIGHTENED: 0, MACHINA: 0, NEUTRAL: 0, UNKNOWN: 0 };
   var levelStats = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0 };
-  
+  var syncStats = { pending: 0, synced: 0, error: 0, unknown: 0 };
+
+  var normalizeTeam = function(team) {
+    // IITC can represent teams as strings or numeric constants depending on source
+    if (team === undefined || team === null || team === '') return 'UNKNOWN';
+
+    // string values
+    if (typeof team === 'string') {
+      var t = team.toUpperCase();
+      if (t === 'R' || t === 'RESISTANCE') return 'RESISTANCE';
+      if (t === 'E' || t === 'ENLIGHTENED') return 'ENLIGHTENED';
+      if (t === 'M' || t === 'MACHINA') return 'MACHINA';
+      if (t === 'N' || t === 'NEUTRAL') return 'NEUTRAL';
+      return 'UNKNOWN';
+    }
+
+    // numeric values (common mapping in IITC: 0 neutral, 1 resistance, 2 enlightened; machina varies)
+    if (typeof team === 'number') {
+      if (team === 0) return 'NEUTRAL';
+      if (team === 1) return 'RESISTANCE';
+      if (team === 2) return 'ENLIGHTENED';
+      // Some builds use 3 for Machina
+      if (team === 3) return 'MACHINA';
+      return 'UNKNOWN';
+    }
+
+    // object/other
+    return 'UNKNOWN';
+  };
+
   for (var guid in portalIntelCache.cache) {
     var intel = portalIntelCache.cache[guid];
-    teamStats[intel.team]++;
-    levelStats[intel.level]++;
+
+    // team
+    var teamKey = normalizeTeam(intel.team);
+    if (teamStats[teamKey] === undefined) teamStats.UNKNOWN++;
+    else teamStats[teamKey]++;
+
+    // level
+    var lvl = parseInt(intel.level, 10);
+    if (levelStats[lvl] !== undefined) levelStats[lvl]++;
+
+    // sync
+    var st = (intel.syncStatus || intel.SyncStatus || 'pending').toLowerCase();
+    if (st === 'pending') syncStats.pending++;
+    else if (st === 'synced') syncStats.synced++;
+    else if (st === 'error') syncStats.error++;
+    else syncStats.unknown++;
   }
-  
+
+  // Keep the status bar "pending sync" accurate
+  portalIntelCache.stats.pendingSync = syncStats.pending;
+
   var html = $('<div>').css({ 'font-family': 'monospace', 'font-size': '12px' });
-  
+
   html.append($('<h3>').text('📊 Portal Intelligence Cache Statistics'));
-  
+
   html.append($('<h4>').text('Cache Status'));
   html.append($('<div>').html(
     '<strong>Total Portals:</strong> ' + portalIntelCache.stats.totalCaptured + '<br>' +
@@ -641,7 +1016,8 @@ portalIntelCache.showStats = function() {
     '<span style="color: #0088ff;">■</span> <strong>Resistance:</strong> ' + teamStats.RESISTANCE + '<br>' +
     '<span style="color: #03dc03;">■</span> <strong>Enlightened:</strong> ' + teamStats.ENLIGHTENED + '<br>' +
     '<span style="color: #ff0028;">■</span> <strong>Machina:</strong> ' + teamStats.MACHINA + '<br>' +
-    '<span style="color: #ccc;">■</span> <strong>Neutral:</strong> ' + teamStats.NEUTRAL
+    '<span style="color: #ccc;">■</span> <strong>Neutral:</strong> ' + teamStats.NEUTRAL + '<br>' +
+    '<span style="color: #999;">■</span> <strong>Unknown:</strong> ' + teamStats.UNKNOWN
   ));
   
   html.append($('<h4>').text('Level Distribution'));
@@ -651,13 +1027,20 @@ portalIntelCache.showStats = function() {
   }
   html.append($('<div>').html(levelHTML));
   
+  html.append($('<h4>').text('Sync Status'));
+  html.append($('<div>').html(
+    '<span style="color: #ff0;">⏳</span> <strong>Pending:</strong> ' + syncStats.pending + '<br>' +
+    '<span style="color: #0f0;">✅</span> <strong>Synced:</strong> ' + syncStats.synced + '<br>' +
+    '<span style="color: #f00;">❌</span> <strong>Error:</strong> ' + syncStats.error + (syncStats.unknown ? ('<br><span style="color:#999;">■</span> <strong>Unknown:</strong> ' + syncStats.unknown) : '')
+  ));
+
   html.append($('<h4>').text('Storage'));
   html.append($('<div>').html(
     '<strong>Method:</strong> localStorage<br>' +
     '<strong>Auto-Save:</strong> ' + (portalIntelCache.config.autoSave ? 'Enabled' : 'Disabled') + '<br>' +
     '<strong>Debug Mode:</strong> ' + (portalIntelCache.config.debugMode ? 'Enabled' : 'Disabled')
   ));
-  
+
   window.dialog({
     html: html,
     title: 'Portal Intel Cache Stats',
@@ -723,7 +1106,7 @@ var setup = function() {
   console.log('[Intel Cache] ✅ Exposed as window.portalIntelCache');
   
   console.log('[Intel Cache] ========== PLUGIN INITIALIZED SUCCESSFULLY ==========');
-  console.log('[Intel Cache] Plugin version: 0.1.8');
+  console.log('[Intel Cache] Plugin version: 0.3.0');
   console.log('[Intel Cache] Current cache size:', Object.keys(portalIntelCache.cache).length, 'portals');
   console.log('[Intel Cache] Debug mode:', portalIntelCache.config.debugMode);
   console.log('[Intel Cache] ========== NOW WAITING FOR PORTAL SELECTION ==========');
@@ -735,3 +1118,306 @@ window.bootPlugins = window.bootPlugins || [];
 window.bootPlugins.push(setup);
 // If IITC already loaded, run setup now
 if (window.iitcLoaded) setup();
+
+/**
+ * Import cache from JSON file
+ */
+portalIntelCache.importCache = function() {
+  // Create file input element
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'application/json,.json';
+  
+  fileInput.onchange = function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    
+    var reader = new FileReader();
+    reader.onload = function(event) {
+      try {
+        var importedData = JSON.parse(event.target.result);
+        
+        // Validate imported data
+        if (!Array.isArray(importedData)) {
+          alert('Invalid file format. Expected JSON array of portal records.');
+          return;
+        }
+        
+        // Show import options dialog
+        portalIntelCache.showImportDialog(importedData, file.name);
+        
+      } catch (e) {
+        console.error('[Intel Cache] Import error:', e);
+        alert('Error reading file: ' + e.message);
+      }
+    };
+    
+    reader.readAsText(file);
+  };
+  
+  // Trigger file selection
+  fileInput.click();
+};
+
+/**
+ * Show import dialog with options
+ */
+portalIntelCache.showImportDialog = function(importedData, filename) {
+  var importCount = importedData.length;
+  var currentCount = Object.keys(portalIntelCache.cache).length;
+  
+  var html = $('<div>').css({ 'font-family': 'monospace', 'font-size': '12px' });
+  
+  html.append($('<h3>').text('📥 Import Portal Cache'));
+  
+  html.append($('<div>').html(
+    '<strong>File:</strong> ' + filename + '<br>' +
+    '<strong>Portals in file:</strong> ' + importCount + '<br>' +
+    '<strong>Current cache size:</strong> ' + currentCount + '<br><br>' +
+    'Choose import mode:'
+  ));
+  
+  var $importModeSelect = $('<select>')
+    .css({
+      'width': '100%',
+      'padding': '5px',
+      'margin': '10px 0',
+      'background': '#1b415e',
+      'color': '#fff',
+      'border': '1px solid #0f0',
+      'font-family': 'monospace'
+    })
+    .append($('<option>').val('merge').text('Merge - Add new portals, update existing'))
+    .append($('<option>').val('replace').text('Replace - Clear cache and import'))
+    .append($('<option>').val('add-only').text('Add Only - Skip existing portals'));
+  
+  html.append($('<div>').text('Import Mode:'));
+  html.append($importModeSelect);
+  
+  // Add filter options
+  html.append($('<div>').css('margin-top', '15px').html('<strong>Optional Filters:</strong>'));
+  
+  var $filterContainer = $('<div>').css('margin', '10px 0');
+  
+  // Team filter
+  var $teamFilter = $('<select>')
+    .css({
+      'width': '100%',
+      'padding': '5px',
+      'margin': '5px 0',
+      'background': '#1b415e',
+      'color': '#fff',
+      'border': '1px solid #0f0',
+      'font-family': 'monospace'
+    })
+    .append($('<option>').val('all').text('All Teams'))
+    .append($('<option>').val('RESISTANCE').text('Resistance Only'))
+    .append($('<option>').val('ENLIGHTENED').text('Enlightened Only'))
+    .append($('<option>').val('NEUTRAL').text('Neutral Only'))
+    .append($('<option>').val('MACHINA').text('Machina Only'));
+  
+  $filterContainer.append($('<div>').text('Team Filter:'));
+  $filterContainer.append($teamFilter);
+  
+  // Level filter
+  var $levelFilterMin = $('<input>')
+    .attr('type', 'number')
+    .attr('min', '1')
+    .attr('max', '8')
+    .attr('placeholder', 'Min Level (1-8)')
+    .css({
+      'width': '48%',
+      'padding': '5px',
+      'margin': '5px 1% 5px 0',
+      'background': '#1b415e',
+      'color': '#fff',
+      'border': '1px solid #0f0',
+      'font-family': 'monospace'
+    });
+  
+  var $levelFilterMax = $('<input>')
+    .attr('type', 'number')
+    .attr('min', '1')
+    .attr('max', '8')
+    .attr('placeholder', 'Max Level (1-8)')
+    .css({
+      'width': '48%',
+      'padding': '5px',
+      'margin': '5px 0 5px 1%',
+      'background': '#1b415e',
+      'color': '#fff',
+      'border': '1px solid #0f0',
+      'font-family': 'monospace'
+    });
+  
+  $filterContainer.append($('<div>').text('Level Range:'));
+  $filterContainer.append($levelFilterMin);
+  $filterContainer.append($levelFilterMax);
+  
+  html.append($filterContainer);
+  
+  // Buttons
+  var $buttonContainer = $('<div>').css('margin-top', '15px');
+  
+  var $importBtn = $('<button>')
+    .text('Import')
+    .css({
+      'padding': '8px 15px',
+      'margin-right': '10px',
+      'background': '#0f0',
+      'color': '#000',
+      'border': 'none',
+      'cursor': 'pointer',
+      'font-weight': 'bold'
+    })
+    .click(function() {
+      var mode = $importModeSelect.val();
+      var teamFilter = $teamFilter.val();
+      var minLevel = parseInt($levelFilterMin.val()) || 1;
+      var maxLevel = parseInt($levelFilterMax.val()) || 8;
+      
+      portalIntelCache.executeImport(importedData, mode, {
+        team: teamFilter,
+        minLevel: minLevel,
+        maxLevel: maxLevel
+      });
+      
+      // Close dialog
+      $('.ui-dialog-content:visible').dialog('close');
+    });
+  
+  var $cancelBtn = $('<button>')
+    .text('Cancel')
+    .css({
+      'padding': '8px 15px',
+      'background': '#666',
+      'color': '#fff',
+      'border': 'none',
+      'cursor': 'pointer'
+    })
+    .click(function() {
+      $('.ui-dialog-content:visible').dialog('close');
+    });
+  
+  $buttonContainer.append($importBtn).append($cancelBtn);
+  html.append($buttonContainer);
+  
+  window.dialog({
+    html: html,
+    title: 'Import Portal Cache',
+    width: 500
+  });
+};
+
+/**
+ * Execute cache import with filters
+ */
+portalIntelCache.executeImport = function(importedData, mode, filters) {
+  console.log('[Intel Cache] Starting import...', { mode: mode, filters: filters, count: importedData.length });
+  
+  var stats = {
+    total: importedData.length,
+    imported: 0,
+    updated: 0,
+    skipped: 0,
+    filtered: 0
+  };
+  
+  // Handle replace mode - clear cache first
+  if (mode === 'replace') {
+    if (confirm('This will DELETE all ' + Object.keys(portalIntelCache.cache).length + ' cached portals.\n\nAre you sure?')) {
+      portalIntelCache.cache = {};
+      console.log('[Intel Cache] Cache cleared for replace mode');
+    } else {
+      console.log('[Intel Cache] Import cancelled');
+      return;
+    }
+  }
+  
+  // Convert imported records back to cache format
+  importedData.forEach(function(record) {
+    // Apply filters
+    if (filters.team !== 'all' && record.Team !== filters.team) {
+      stats.filtered++;
+      return;
+    }
+    
+    if (record.Level < filters.minLevel || record.Level > filters.maxLevel) {
+      stats.filtered++;
+      return;
+    }
+    
+    // Convert from export format to cache format
+    var intel = {
+      guid: record.PortalGUID,
+      latE6: record.LatE6,
+      lngE6: record.LngE6,
+      lat: record.Latitude,
+      lng: record.Longitude,
+      title: record.PortalName,
+      image: record.ImageURL,
+      team: record.Team,
+      level: record.Level,
+      health: record.Health,
+      resCount: record.ResonatorCount,
+      owner: record.OwnerName,
+      linkCount: record.LinkCount,
+      incomingLinks: record.IncomingLinks,
+      outgoingLinks: record.OutgoingLinks,
+      fieldCount: record.FieldCount,
+      history: {
+        visited: record.HistoryVisited,
+        captured: record.HistoryCaptured,
+        scoutControlled: record.HistoryScoutControlled
+      },
+      resonators: JSON.parse(record.ResonatorsJSON || '[]'),
+      mods: JSON.parse(record.ModsJSON || '[]'),
+      firstSeen: record.FirstSeen,
+      lastUpdated: record.LastUpdated,
+      updateCount: record.UpdateCount,
+      syncStatus: record.SyncStatus || 'pending',
+      lastSyncAttempt: record.LastSyncAttempt,
+      syncError: record.SyncError
+    };
+    
+    var guid = intel.guid;
+    var exists = portalIntelCache.cache[guid];
+    
+    // Handle different import modes
+    if (mode === 'add-only' && exists) {
+      stats.skipped++;
+      return;
+    }
+    
+    if (exists) {
+      // Preserve original firstSeen date
+      intel.firstSeen = exists.firstSeen;
+      intel.updateCount = (exists.updateCount || 1) + 1;
+      stats.updated++;
+    } else {
+      stats.imported++;
+    }
+    
+    portalIntelCache.cache[guid] = intel;
+  });
+  
+  // Update stats
+  portalIntelCache.stats.totalCaptured = Object.keys(portalIntelCache.cache).length;
+  portalIntelCache.stats.pendingSync = portalIntelCache.stats.totalCaptured;
+  
+  // Save cache
+  portalIntelCache.saveCache();
+  portalIntelCache.updateStatusDisplay();
+  
+  // Show results
+  var message = 'Import Complete!\n\n' +
+    'Total in file: ' + stats.total + '\n' +
+    'Imported (new): ' + stats.imported + '\n' +
+    'Updated: ' + stats.updated + '\n' +
+    'Skipped: ' + stats.skipped + '\n' +
+    'Filtered out: ' + stats.filtered + '\n\n' +
+    'Final cache size: ' + portalIntelCache.stats.totalCaptured;
+  
+  alert(message);
+  console.log('[Intel Cache] Import complete:', stats);
+};
