@@ -1073,14 +1073,33 @@ portalIntelCache.importCache = function() {
       try {
         var importedData = JSON.parse(event.target.result);
         
-        // Validate imported data
-        if (!Array.isArray(importedData)) {
-          alert('Invalid file format. Expected JSON array of portal records.');
+        // Detect format and normalize to array
+        var records = [];
+        var formatType = '';
+        
+        // Check if it's database format (has 'table' and 'rows' properties)
+        if (importedData.table && Array.isArray(importedData.rows)) {
+          console.log('[Intel Cache] Detected database export format');
+          formatType = 'database';
+          records = importedData.rows;
+        }
+        // Check if it's direct array format (tool export)
+        else if (Array.isArray(importedData)) {
+          console.log('[Intel Cache] Detected tool export format');
+          formatType = 'tool';
+          records = importedData;
+        } else {
+          alert('Invalid file format. Expected JSON array of portal records or database export format.');
+          return;
+        }
+        
+        if (records.length === 0) {
+          alert('No portal records found in file.');
           return;
         }
         
         // Show import options dialog
-        portalIntelCache.showImportDialog(importedData, file.name);
+        portalIntelCache.showImportDialog(records, file.name, formatType);
         
       } catch (e) {
         console.error('[Intel Cache] Import error:', e);
@@ -1098,7 +1117,7 @@ portalIntelCache.importCache = function() {
 /**
  * Show import dialog with options
  */
-portalIntelCache.showImportDialog = function(importedData, filename) {
+portalIntelCache.showImportDialog = function(importedData, filename, formatType) {
   var importCount = importedData.length;
   var currentCount = Object.keys(portalIntelCache.cache).length;
   
@@ -1108,6 +1127,7 @@ portalIntelCache.showImportDialog = function(importedData, filename) {
   
   html.append($('<div>').html(
     '<strong>File:</strong> ' + filename + '<br>' +
+    '<strong>Format:</strong> ' + (formatType === 'database' ? 'Database Export' : 'Tool Export') + '<br>' +
     '<strong>Portals in file:</strong> ' + importCount + '<br>' +
     '<strong>Current cache size:</strong> ' + currentCount + '<br><br>' +
     'Choose import mode:'
@@ -1148,9 +1168,13 @@ portalIntelCache.showImportDialog = function(importedData, filename) {
     })
     .append($('<option>').val('all').text('All Teams'))
     .append($('<option>').val('RESISTANCE').text('Resistance Only'))
+    .append($('<option>').val('R').text('Resistance Only (R)'))
     .append($('<option>').val('ENLIGHTENED').text('Enlightened Only'))
+    .append($('<option>').val('E').text('Enlightened Only (E)'))
     .append($('<option>').val('NEUTRAL').text('Neutral Only'))
-    .append($('<option>').val('MACHINA').text('Machina Only'));
+    .append($('<option>').val('N').text('Neutral Only (N)'))
+    .append($('<option>').val('MACHINA').text('Machina Only'))
+    .append($('<option>').val('M').text('Machina Only (M)'));
   
   $filterContainer.append($('<div>').text('Team Filter:'));
   $filterContainer.append($teamFilter);
@@ -1216,7 +1240,7 @@ portalIntelCache.showImportDialog = function(importedData, filename) {
         team: teamFilter,
         minLevel: minLevel,
         maxLevel: maxLevel
-      });
+      }, formatType);
       
       // Close dialog
       $('.ui-dialog-content:visible').dialog('close');
@@ -1248,8 +1272,8 @@ portalIntelCache.showImportDialog = function(importedData, filename) {
 /**
  * Execute cache import with filters
  */
-portalIntelCache.executeImport = function(importedData, mode, filters) {
-  console.log('[Intel Cache] Starting import...', { mode: mode, filters: filters, count: importedData.length });
+portalIntelCache.executeImport = function(importedData, mode, filters, formatType) {
+  console.log('[Intel Cache] Starting import...', { mode: mode, filters: filters, count: importedData.length, format: formatType });
   
   var stats = {
     total: importedData.length,
@@ -1270,10 +1294,48 @@ portalIntelCache.executeImport = function(importedData, mode, filters) {
     }
   }
   
+  // Helper function to normalize team values
+  var normalizeTeam = function(team) {
+    if (!team) return team;
+    // Map single letter codes to full names
+    var teamMap = {
+      'R': 'RESISTANCE',
+      'E': 'ENLIGHTENED',
+      'N': 'NEUTRAL',
+      'M': 'MACHINA'
+    };
+    return teamMap[team] || team;
+  };
+  
+  // Helper function to parse JSON that might be double-escaped
+  var safeParseJSON = function(jsonStr, defaultValue) {
+    if (!jsonStr) return defaultValue || [];
+    try {
+      // If it's already an object/array, return it
+      if (typeof jsonStr === 'object') return jsonStr;
+      
+      // Try parsing once
+      var parsed = JSON.parse(jsonStr);
+      
+      // If result is a string, it was double-escaped, parse again
+      if (typeof parsed === 'string') {
+        return JSON.parse(parsed);
+      }
+      
+      return parsed;
+    } catch (e) {
+      console.warn('[Intel Cache] Failed to parse JSON:', e, jsonStr);
+      return defaultValue || [];
+    }
+  };
+  
   // Convert imported records back to cache format
   importedData.forEach(function(record) {
+    // Normalize team for filtering
+    var recordTeam = normalizeTeam(record.Team);
+    
     // Apply filters
-    if (filters.team !== 'all' && record.Team !== filters.team) {
+    if (filters.team !== 'all' && recordTeam !== filters.team && record.Team !== filters.team) {
       stats.filtered++;
       return;
     }
@@ -1292,7 +1354,7 @@ portalIntelCache.executeImport = function(importedData, mode, filters) {
       lng: record.Longitude,
       title: record.PortalName,
       image: record.ImageURL,
-      team: record.Team,
+      team: recordTeam,  // Use normalized team
       level: record.Level,
       health: record.Health,
       resCount: record.ResonatorCount,
@@ -1306,8 +1368,8 @@ portalIntelCache.executeImport = function(importedData, mode, filters) {
         captured: record.HistoryCaptured,
         scoutControlled: record.HistoryScoutControlled
       },
-      resonators: JSON.parse(record.ResonatorsJSON || '[]'),
-      mods: JSON.parse(record.ModsJSON || '[]'),
+      resonators: safeParseJSON(record.ResonatorsJSON, []),
+      mods: safeParseJSON(record.ModsJSON, []),
       firstSeen: record.FirstSeen,
       lastUpdated: record.LastUpdated,
       updateCount: record.UpdateCount,
@@ -1347,6 +1409,7 @@ portalIntelCache.executeImport = function(importedData, mode, filters) {
   
   // Show results
   var message = 'Import Complete!\n\n' +
+    'Format: ' + (formatType === 'database' ? 'Database Export' : 'Tool Export') + '\n' +
     'Total in file: ' + stats.total + '\n' +
     'Imported (new): ' + stats.imported + '\n' +
     'Updated: ' + stats.updated + '\n' +
